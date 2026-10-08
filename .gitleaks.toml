@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Chaves de desenvolvimento e teste geradas pelo Phoenix, sem uso em produção"
+paths = [
+  '''apps/backend/config/(dev|test)\.exs''',
+]

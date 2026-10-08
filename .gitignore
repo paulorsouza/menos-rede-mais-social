@@ -1,0 +1,25 @@
+# Rust
+services/target/
+
+# Node
+node_modules/
+apps/web/dist/
+
+# O apps/backend tem o próprio .gitignore para o Elixir.
+
+# Nix
+result
+result-*
+
+# Segredos locais nunca entram no repositório
+.env
+.env.*
+!.env.example
+
+# Editores, ferramentas e sistema
+.claude/
+.vscode/
+.idea/
+.elixir_ls/
+.DS_Store
+Thumbs.db

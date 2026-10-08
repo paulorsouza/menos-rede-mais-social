@@ -1,0 +1,8 @@
+# Fim de linha LF no repositório, em qualquer sistema. Isso também ajuda os
+# builds reproduzíveis: o mesmo código gera o mesmo hash em Windows e Linux.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary

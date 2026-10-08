@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+// Contrato entre o backend em Elixir e o motor de anúncios em Rust
+// (services/ads-engine). Dinheiro sempre em centavos inteiros.
+package redesocial.ads.v1;
+
+service AdsEngine {
+  // Quantas exibições cabem nas horas compradas por dia.
+  rpc ImpressionsPerDay(ImpressionsPerDayRequest) returns (ImpressionsPerDayResponse);
+  // Pagamento do mês de um criador, aplicando as faixas decrescentes.
+  rpc MonthlyPayout(MonthlyPayoutRequest) returns (MonthlyPayoutResponse);
+  // Rateio de um anúncio de shorts entre os criadores dos shorts anteriores.
+  rpc SplitShortsRevenue(SplitShortsRevenueRequest) returns (SplitShortsRevenueResponse);
+}
+
+message ImpressionsPerDayRequest {
+  uint64 hours_per_day = 1;
+  uint64 ad_seconds = 2;
+}
+
+message ImpressionsPerDayResponse {
+  uint64 impressions = 1;
+}
+
+message MonthlyPayoutRequest {
+  uint64 creator_id = 1;
+  uint64 views = 2;
+  uint64 cents_per_thousand = 3;
+}
+
+message MonthlyPayoutResponse {
+  uint64 effective_views = 1;
+  uint64 payout_cents = 2;
+  uint32 params_version = 3;
+}
+
+message ShortView {
+  uint64 creator_id = 1;
+  uint64 watched_ms = 2;
+  bool monetized = 3;
+}
+
+message SplitShortsRevenueRequest {
+  uint64 revenue_cents = 1;
+  repeated ShortView views = 2;
+}
+
+message SplitShortsRevenueResponse {
+  // Vazio quando ninguém tinha anúncio ligado: a receita fica com o fundo.
+  map<uint64, uint64> cents_by_creator = 1;
+}

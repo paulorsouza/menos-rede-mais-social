@@ -1,0 +1,37 @@
+# Parâmetros públicos do motor de feed (services/feed-engine).
+#
+# Este arquivo é lido pelo código em produção. Mudar qualquer valor aqui é uma
+# mudança de código como outra qualquer: passa por RFC, revisão de duas pessoas
+# e entra no log público antes de valer. Ao mudar, aumente `version`.
+version = 1
+
+[recency]
+# A pontuação de recência cai pela metade a cada `half_life_hours` horas.
+half_life_hours = 24
+
+[bubble]
+# Modo "na bolha": quem você segue e os temas de que você gosta.
+# Pontos por seguir o autor do post.
+follow_weight = 100
+# Multiplica o peso que você tem em cada tema do post (0 a 100).
+topic_weight = 1
+# Multiplica curtidas + salvamentos do post.
+engagement_weight = 1
+
+[outside_bubble]
+# Modo "furando a bolha": temas em que seu interesse é no máximo este valor
+# (0 a 100) contam como fora da bolha.
+max_interest = 10
+# Mínimo de curtidas + salvamentos para um post de fora da bolha entrar.
+min_engagement = 20
+
+[mixed]
+# Modo "meio a meio": a cada `outside_every` itens, um vem de fora da bolha.
+# Com 2, os modos se alternam um a um.
+outside_every = 2
+
+[public_ranking]
+# Modo "sem algoritmo: ranking". A fórmula é igual para todo mundo:
+# (curtidas × like_weight + salvamentos × save_weight + 1) × recência
+like_weight = 1
+save_weight = 3

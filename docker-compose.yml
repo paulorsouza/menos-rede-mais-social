@@ -1,0 +1,45 @@
+# Ambiente de desenvolvimento local. Usuário e senha valem só para a máquina de
+# quem desenvolve; produção usa outra configuração.
+#
+#   docker compose up -d db     só o banco
+#   docker compose up           banco + backend (sem precisar instalar Elixir)
+#
+# Se a porta 5432 já estiver ocupada na sua máquina, escolha outra:
+#   DB_PORT=5433 docker compose up -d db
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    image: elixir:1.18
+    working_dir: /app
+    command: sh -c "mix local.hex --force && mix local.rebar --force && mix setup && mix phx.server"
+    environment:
+      DB_HOST: db
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./apps/backend:/app
+      # deps e _build ficam em volumes do Docker, fora da pasta do projeto.
+      - backend-deps:/app/deps
+      - backend-build:/app/_build
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  backend-deps:
+  backend-build:

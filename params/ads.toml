@@ -1,0 +1,31 @@
+# Parâmetros públicos de anúncios e de pagamento a criadores
+# (services/ads-engine).
+#
+# Os valores abaixo são ILUSTRATIVOS. Os números finais dependem de decisão do
+# conselho (veja a seção 6 do plano). Qualquer mudança passa por RFC e entra
+# no log público antes de valer. Ao mudar, aumente `version`.
+version = 1
+
+# Nos shorts, entra um anúncio a cada N shorts assistidos.
+shorts_ad_every = 6
+
+# Faixas de pagamento decrescente, pelo total de views do criador no mês.
+# Cada faixa vale só para as views dentro dela, como no imposto de renda:
+# crescer nunca diminui o ganho total.
+# `up_to` é o limite de cima da faixa. A última faixa não tem limite.
+# `percent` é quanto do valor base cada view dessa faixa paga.
+
+[[payout_bands]]
+up_to = 100_000
+percent = 100
+
+[[payout_bands]]
+up_to = 1_000_000
+percent = 75
+
+[[payout_bands]]
+up_to = 10_000_000
+percent = 50
+
+[[payout_bands]]
+percent = 30
