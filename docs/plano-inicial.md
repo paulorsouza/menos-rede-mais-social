@@ -14,7 +14,7 @@ A demonstração foi construída na frente das fases, tocando partes da 1 à 4, 
 | --- | --- |
 | 0 · Manifesto e comunidade | Quase pronta. Faltam contribuidores de fora e o conselho provisório |
 | 1 · Protótipo | Pronta na demo, com o gov.br de homologação já integrado. Faltam as credenciais do gov.br, uma fonte confiável de idade e o grupo de teste |
-| 2 · Algoritmos e transparência | Motor por grafo pronto na demo. Faltam build reproduzível, log público, verificador e escala |
+| 2 · Algoritmos e transparência | Feed conferível de ponta a ponta: registro público, recibo assinado, retratos do grafo, verificador aberto e build reproduzível. Faltam escala, gRPC e alguém de fora fazer o caminho todo |
 | 3 · Vídeo | Upload, player e shorts prontos. Faltam transcodificação, armazenamento de objetos, CDN e lives |
 | 4 · Anúncios e pagamentos | Regras do dinheiro prontas no motor. Faltam venda de campanhas, cobrança, PIX e auditoria |
 | 5 · Piloto com o governo | Não começou |
@@ -268,6 +268,7 @@ Limites assumidos:
 
 - **Confiança no fabricante do chip.** A atestação depende de AMD ou Intel. Mitigação: usar os dois fornecedores e ter verificadores independentes.
 - **Código não prova intenção sobre dados.** Por isso os compromissos diários e a ferramenta que refaz o cálculo do feed de um usuário a partir dos dados comprometidos.
+- **O retrato prova o passado, não o presente.** O que a pessoa fez depois do último retrato aparece na conta do feed como "recente", sem prova ainda. Quanto mais frequentes os retratos, menor essa janela.
 - **Provas criptográficas custam caro.** Elas ficam para os pagamentos mensais. O feed em tempo real usa atestação e reexecução por amostragem.
 
 ## 10. Governança
@@ -343,14 +344,18 @@ Feito:
 - "Por que estou vendo isto" com os números de cada sugestão.
 - Cálculo determinístico, só com números inteiros, coberto por testes.
 - Se o motor cair, o feed passa a mostrar só quem a pessoa segue, por data, em vez de parar.
+- Registro público: árvore de Merkle no formato do Certificate Transparency, com cabeçalho assinado e provas de inclusão e de consistência. O banco recusa mudar ou apagar entradas. Entram nele cada versão do motor (com o hash dos parâmetros e a chave dos recibos), cada retrato do grafo e cada ordem judicial aberta.
+- Recibo do feed: o motor assina cada cálculo, ligando a entrada, a saída, os parâmetros e a versão. Qualquer pessoa baixa a conta do próprio feed com um toque.
+- Retratos do grafo: as curtidas, views e seguidores viram uma árvore com pseudônimos, e só a raiz é publicada. A conta do feed traz a prova de que cada ligação usada estava no retrato.
+- Verificador aberto, que não fala com a rede: refaz o feed, confere o recibo, as provas dos dados e o registro.
+- Build reproduzível com Nix: o motor compilado duas vezes do zero sai idêntico, byte por byte. A CI repete isso a cada envio e, na `main`, assina os binários com o Sigstore.
 
 Falta:
 
-- Build reproduzível com Nix (o arquivo existe, mas nunca foi testado) e assinatura com Sigstore.
-- Log público de versões e o verificador aberto.
-- A ferramenta que refaz o feed de uma pessoa a partir dos dados comprometidos, com a raiz Merkle diária.
-- Escala. Hoje o grafo é montado a cada pedido, com no máximo 300 posts candidatos. Uma rede de verdade precisa pré-calcular vizinhos, particionar as tabelas e ter réplicas de leitura.
-- gRPC entre o backend e o motor.
+- Alguém de fora fazer o caminho todo sozinho, que é o portão. As ferramentas estão prontas e documentadas no README.
+- Rodar a assinatura do Sigstore de verdade, no primeiro envio para a `main`.
+- Escala. As leituras pesadas do feed já vão para uma réplica de leitura quando ela existe. Medido na demo (110 contas, 1.735 ligações): o feed meio a meio sai em 69 ms, juntar as 984 ligações da vizinhança leva 16 ms e o retrato do grafo, 175 ms. O problema é a forma: hoje as ligações são juntadas a cada pedido e o retrato relê o grafo inteiro. Com milhões de pessoas, isso pede vizinhos pré-calculados, retrato incremental e as tabelas de views e curtidas particionadas por mês. Essas mudanças entram quando houver carga real para medir, e não antes.
+- gRPC entre o backend e o motor. O JSON com os campos de `proto/` funciona e é o que o verificador usa para o recibo; o gRPC entra junto com a escala, quando o tamanho das mensagens pesar.
 - Ajustar os pesos do grafo com uso real, por RFC.
 
 ### Fase 3 · Vídeo

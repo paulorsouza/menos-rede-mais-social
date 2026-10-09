@@ -55,6 +55,7 @@ Todas são fictícias, assim como os anunciantes e os valores.
 14. **Menor de idade.** Como a Maria, abra o perfil do Theo: é privado, porque ele não segue a Maria. Seguir não basta, ele precisa seguir de volta. Os posts dele nunca aparecem em "Em alta" nem como sugestão, e ele não vê anúncio nos shorts.
 15. **Ordem judicial.** Entre como o Rui, abra "Ordens judiciais" e registre uma ordem para `maria.silva`. Toque em dois guardiões: o "Abrir" continua travado. Toque no terceiro e abra: o CPF e os acessos aparecem uma única vez. Mostre na transparência que a abertura entrou no registro com o juízo e a data, sem o apelido de ninguém, e o hash do `params/guardioes.toml`.
 16. **Seus dados.** No menu da conta, "Seus dados" baixa um arquivo com tudo o que a rede guarda e apaga a conta. O arquivo não tem CPF, porque a rede não guarda o número.
+17. **Conferir o feed sem confiar na rede.** Como a Maria, toque no chip do motor e em "Baixar a conta deste feed". Na transparência, baixe as entradas do registro. No terminal, rode `cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json` dentro de `services/`: o verificador refaz a ordem do feed, confere o recibo assinado pelo motor e mostra que cada curtida usada estava no retrato do grafo publicado. Mude um número no arquivo e rode de novo: ele aponta o que não confere.
 
 ## O que é real e o que é simulado
 
@@ -64,6 +65,7 @@ Funciona de verdade nesta demo:
 - O "por que estou vendo isto", o rateio dos shorts e o pagamento por faixas, todos calculados pelo motor.
 - A impressão digital do CPF, que impede contas duplicadas sem guardar o número.
 - O cofre do CPF: cada conta tem o CPF selado com a chave dos guardiões, e a ordem judicial abre com 3 de 5, com as provas conferidas pelo motor. Só as fatias dos guardiões são de teste, para a demo funcionar sem as instituições.
+- O registro público, o recibo assinado de cada feed, os retratos do grafo e o verificador aberto. O build do motor com Nix é reproduzível.
 - Os registros de acesso com o IP selado, a moderação com recurso, as regras de menores, baixar os dados e apagar a conta.
 - As regras de publicação: conta básica não publica, e só prata ou ouro recebe por anúncios.
 

@@ -62,7 +62,7 @@ O que ainda é simulado ou não existe está listado no fim do [roteiro da demon
 
 ## Desenvolvendo
 
-Para trabalhar fora do Docker você vai precisar de Node 20.19 ou mais novo e Rust 1.85 ou mais novo. Elixir é opcional, porque o backend também roda no Docker. Quem usa Nix pode entrar no ambiente com `nix develop` (o `flake.nix` ainda não foi testado).
+Para trabalhar fora do Docker você vai precisar de Node 20.19 ou mais novo e Rust 1.85 ou mais novo. Elixir é opcional, porque o backend também roda no Docker. Quem usa Nix pode entrar no ambiente com `nix develop`.
 
 Motor em Rust (testes e servidor na porta 7070):
 
@@ -82,13 +82,38 @@ npm run dev
 
 Mais detalhes do backend, inclusive como rodar os testes, estão em [apps/backend/README.md](apps/backend/README.md).
 
+## Conferir sem confiar na rede
+
+A rede foi feita para ser conferida por quem não confia nela. Três coisas dá para conferir hoje, do seu computador.
+
+**O binário do motor sai do código publicado.** Com Nix, compile duas vezes; a segunda recompila do zero e para com erro se um único byte mudar. O hash do binário é o mesmo para qualquer pessoa, e a CI assina os binários da `main` com o Sigstore.
+
+```bash
+nix build .#engine-server
+nix build .#engine-server --rebuild
+sha256sum result/bin/engine-server
+```
+
+**O seu feed seguiu as regras publicadas.** No app, toque no chip do motor e em "Baixar a conta deste feed". O verificador refaz a conta com o mesmo código, confere o recibo assinado pelo motor e confere que cada curtida, view e seguidor usado estava no retrato do grafo publicado.
+
+```bash
+cd services
+cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json
+```
+
+**O registro público não foi reescrito.** Baixe o cabeçalho e as entradas na página de transparência (ou em `/api/registro` e `/api/registro/entradas`). Guarde o cabeçalho; da próxima vez, a prova de consistência mostra que nada do que estava nele foi trocado ou apagado.
+
+```bash
+cargo run -p verificador -- registro registro.json entradas.json
+cargo run -p verificador -- registro registro.json entradas.json --anterior registro-antigo.json --consistencia prova.json
+```
+
 ## Próximos passos
 
-- Login gov.br de verdade, em ambiente de homologação (OpenID Connect).
-- Moderação com motivo e recurso, e o relatório de transparência trimestral.
-- Cópia cifrada do CPF com os guardiões.
+- Atestação de hardware no motor (AMD SEV-SNP ou Intel TDX), para provar qual binário está rodando agora.
+- Cerimônia distribuída dos guardiões do CPF, e a chave do registro num cofre de hardware.
+- Escala: vizinhos pré-calculados, tabelas particionadas e réplicas de leitura.
 - Servidores gRPC em Rust a partir dos contratos em `proto/`.
-- Build reproduzível com Nix e atestação de hardware no motor.
 - Fixar as actions do CI por hash de commit.
 
 ## Contribuindo
