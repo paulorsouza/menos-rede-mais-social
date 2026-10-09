@@ -1,11 +1,11 @@
-# Ambiente de desenvolvimento local. Usuário e senha valem só para a máquina de
-# quem desenvolve; produção usa outra configuração.
+# Ambiente de desenvolvimento e de demonstração. Usuário e senha valem só para
+# a máquina de quem desenvolve; produção usa outra configuração.
 #
+#   docker compose up --build   sobe tudo: banco, motor, backend e front
 #   docker compose up -d db     só o banco
-#   docker compose up           banco + backend (sem precisar instalar Elixir)
 #
-# Se a porta 5432 já estiver ocupada na sua máquina, escolha outra:
-#   DB_PORT=5433 docker compose up -d db
+# A demo abre em http://localhost:5173. Se a porta 5432 já estiver ocupada na
+# sua máquina, escolha outra no arquivo .env (DB_PORT=5433).
 services:
   db:
     image: postgres:17
@@ -22,12 +22,30 @@ services:
       timeout: 3s
       retries: 10
 
+  engine:
+    build:
+      context: .
+      dockerfile: services/engine-server/Dockerfile
+    ports:
+      - "7070:7070"
+    volumes:
+      # Os parâmetros públicos do repositório, os mesmos que o motor publica
+      # na página de transparência.
+      - ./params:/app/params:ro
+      # Só na demonstração: as fatias dos guardiões de teste, para simular uma
+      # ordem judicial. Em produção as fatias ficam com os guardiões.
+      - ./services/cofre/demo:/app/cofre-demo:ro
+    environment:
+      COFRE_DEMO_FATIAS: /app/cofre-demo
+
   backend:
-    image: elixir:1.18
-    working_dir: /app
-    command: sh -c "mix local.hex --force && mix local.rebar --force && mix setup && mix phx.server"
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    command: sh -c "mix setup && mix phx.server"
     environment:
       DB_HOST: db
+      ENGINE_URL: http://engine:7070
     ports:
       - "4000:4000"
     volumes:
@@ -38,8 +56,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      engine:
+        condition: service_started
+
+  web:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      API_URL: http://backend:4000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   db-data:
   backend-deps:
   backend-build:
+  web-node-modules:

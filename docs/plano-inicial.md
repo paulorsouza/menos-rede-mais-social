@@ -1,8 +1,25 @@
 # Plano inicial -rede+social
 
-Versão de 7 de outubro de 2026. Daqui em diante, mudanças nas regras descritas aqui passam por [RFC](rfcs/README.md).
+Versão de 9 de outubro de 2026. Daqui em diante, mudanças nas regras descritas aqui passam por [RFC](rfcs/README.md).
 
 A -rede+social é uma rede social pública, de código aberto e sem fins lucrativos, com infraestrutura paga pelo governo. Este plano define produto, dinheiro, algoritmos, arquitetura, segurança, governança e as fases até um piloto com o governo. O texto para o público está no [manifesto](../MANIFESTO.md).
+
+## Onde estamos
+
+Existe uma demonstração que roda inteira no computador com um comando e mostra as ideias centrais funcionando: login pelo gov.br (simulado na demo, pronto para homologação), publicação, feed por grafo com o "por que estou vendo isto", moderação com recurso, o cofre do CPF com os guardiões, anúncios com pagamento por faixas e a página de transparência. Tudo com pessoas, anunciantes e valores fictícios. Nada está em produção e nenhuma pessoa real usou a rede ainda.
+
+A demonstração foi construída na frente das fases, tocando partes da 1 à 4, porque era preciso mostrar a proposta funcionando. Isso não pula nenhum portão. O que falta em cada fase é justamente o que transforma a demonstração em algo que pode receber gente de verdade.
+
+| Fase | Situação |
+| --- | --- |
+| 0 · Manifesto e comunidade | Quase pronta. Faltam contribuidores de fora e o conselho provisório |
+| 1 · Protótipo | Pronta na demo, com o gov.br de homologação já integrado. Faltam as credenciais do gov.br, uma fonte confiável de idade e o grupo de teste |
+| 2 · Algoritmos e transparência | Motor por grafo pronto na demo. Faltam build reproduzível, log público, verificador e escala |
+| 3 · Vídeo | Upload, player e shorts prontos. Faltam transcodificação, armazenamento de objetos, CDN e lives |
+| 4 · Anúncios e pagamentos | Regras do dinheiro prontas no motor. Faltam venda de campanhas, cobrança, PIX e auditoria |
+| 5 · Piloto com o governo | Não começou |
+
+O detalhe de cada fase está na [seção 11](#11-roadmap-e-situação-atual).
 
 ## 1. Princípios
 
@@ -22,7 +39,7 @@ A rede tem três módulos sob um perfil único. Só o módulo de vídeo tem anú
 | Módulo | O que faz | Interações | Anúncios |
 | --- | --- | --- | --- |
 | Fotos e feed | Posts com uma ou mais fotos e legenda; grade no perfil | Curtir, comentar, salvar (proposta) | Não (proposta) |
-| Texto curto | Frases rápidas com limite de caracteres (proposta: 140) | Curtir e repostar; sem respostas | Não |
+| Texto curto | Frases rápidas de até 140 caracteres | Curtir; sem respostas; repostar em aberto | Não |
 | Vídeos | Vídeos gravados de qualquer duração | Curtir, comentar, salvar | Nos pontos que o criador marcar |
 | Shorts | Vídeos verticais curtos em sequência | Curtir, comentar, salvar | 1 anúncio a cada 6 shorts |
 | Lives | Transmissão ao vivo, com gravação opcional | Chat ao vivo (proposta) | A definir |
@@ -32,6 +49,8 @@ Requisitos que valem para todos os módulos:
 - **Celular primeiro.** A maioria dos brasileiros acessa a internet pelo celular, então o app precisa funcionar bem em aparelhos simples.
 - **Internet fraca.** Vídeo com qualidade adaptativa, upload que retoma de onde parou e modo econômico de dados.
 - **Acessibilidade.** Texto alternativo em fotos, legendas automáticas em vídeos e compatibilidade com leitores de tela.
+- **Um campo só para publicar.** Texto, foto, vídeo e short saem do mesmo campo. O tipo vem do arquivo, e vídeo em pé de até 3 minutos vira short. Ninguém escolhe tipo, tema ou tag, porque cada escolha a mais é um clique a mais e, no caso do tema, uma categoria que a rede não deve ter (seção 4).
+- **Poucos cliques e pouca informação na tela.** O que dá para inferir não vira pergunta. Explicação aparece só quando a pessoa pede, no "?" de cada post ou no ícone de informação de cada tela.
 - **Fora da primeira versão:** mensagens diretas, grupos e loja.
 
 ## 3. Contas e acesso
@@ -66,26 +85,56 @@ A lei obriga a rede a identificar um usuário quando um juiz manda. Ao mesmo tem
 
 A regra é 3 de 5, e não todos, porque a rede não pode ficar impedida de cumprir a lei se um guardião perder a chave ou deixar de existir. A proposta de guardiões é a entidade gestora, uma universidade pública, uma organização da sociedade civil, um órgão de controle e o conselho multissetorial, mas a composição ainda está em aberto.
 
-Os registros de acesso (IP, data e hora) ficam guardados pelos seis meses que o Marco Civil exige, cifrados do mesmo jeito.
+Os registros de acesso (IP, data e hora) ficam guardados pelos seis meses que o Marco Civil exige. A data fica aberta, porque é ela que diz quando o registro precisa sumir; o IP fica selado do mesmo jeito que o CPF e só sai na mesma ordem judicial.
+
+Como funciona hoje: o esquema é ElGamal com limiar sobre Ristretto255, no crate `services/cofre`. Cada guardião entrega só a parte daquele CPF, com uma prova de que usou a própria fatia, e três partes abrem aquele CPF e nenhum outro. As chaves públicas dos guardiões ficam em `params/guardioes.toml`, com o hash na página de transparência. Limite assumido na Fase 1: a cerimônia gera a chave num computador desligado da rede e a apaga em seguida. Antes do piloto ela passa a ser distribuída (DKG), para a chave inteira não existir nem por um instante.
 
 ## 4. Algoritmos de feed
 
-O usuário escolhe entre quatro modos e troca quando quiser. Todos são públicos, determinísticos e auditáveis: com os mesmos dados e a mesma versão, o resultado é sempre o mesmo.
+O usuário escolhe entre quatro modos de feed e troca quando quiser. "Em alta" fica numa aba própria, igual para todo mundo. Todos são públicos, determinísticos e auditáveis: com os mesmos dados e a mesma versão, o resultado é sempre o mesmo.
 
 | Modo | O que entra no feed | Como ordena |
 | --- | --- | --- |
-| Na bolha | Quem você segue e seus temas de interesse | Afinidade, recência e qualidade |
-| Furando a bolha | Conteúdo bem avaliado de temas e regiões longe do seu perfil | Diversidade, com filtro mínimo de qualidade |
-| Meio a meio | Os dois modos acima intercalados | Proposta: 50% cada, com ajuste fino numa versão futura |
+| Na bolha | Quem você segue e o que curtem as pessoas de gosto parecido com o seu | Proximidade no grafo, recência e qualidade |
+| Furando a bolha | Só o que ninguém perto de você curtiu ou assistiu, de gente que você não segue | Rodízio entre os autores, com filtro mínimo de qualidade |
+| Meio a meio | Os dois modos acima intercalados | Um de cada, alternando |
 | Sem algoritmo: data | Só quem você segue | Do mais novo para o mais antigo |
-| Sem algoritmo: ranking | Todo o conteúdo público | Uma fórmula pública, igual para todos |
+| Em alta | Todo o conteúdo público | Uma fórmula pública, igual para todos |
+
+### Não existem categorias
+
+A rede não sabe do que um post fala, e não tenta saber. Não existe tema, tag, categoria nem classificador, nem automático, nem escolhido por quem publica. Qualquer lista de categorias é uma decisão de alguém sobre o que é "política", "humor" ou "notícia", e uma rede paga com dinheiro público não pode tomar essa decisão por ninguém.
+
+O que existe é um grafo. Uma pessoa se liga a um post quando curte ou assiste, e a outra pessoa quando segue. O feed sai só disso:
+
+- **O que ela assiste.** Um vídeo ou short visto por pelo menos alguns segundos liga a pessoa a ele. Passar direto não liga.
+- **O que ela curte.** Curtir é uma escolha, então vale mais que assistir. Descurtir desfaz.
+- **Quem ela segue.** Quem você segue está sempre perto de você no grafo.
+
+Curtidas e vídeos assistidos contam por um tempo e depois saem da conta, para a rede acompanhar a pessoa e não prender ninguém no que gostava um ano atrás. Os pesos, o tempo mínimo de vídeo e a janela de tempo ficam em `params/feed.toml`, e a conta é feita no motor aberto.
+
+Nada além disso entra: nem idade, nem região, nem aparelho, nem horário, nem com quem a pessoa conversa. Também não existe tela para escolher interesses. A pessoa muda o próprio feed mudando o que faz.
+
+### Como o grafo vira feed
+
+- **Vizinhos.** São as pessoas que curtiram ou assistiram às mesmas coisas que você. Para alguém virar vizinho, os posts em comum precisam ser uma parte razoável de tudo o que essa pessoa curte, senão quem curte tudo viraria vizinho de todo mundo.
+- **Na bolha** mostra quem você segue e o que seus vizinhos curtiram e você ainda não viu: "quem curte o que você curte também curtiu isto".
+- **Furando a bolha** mostra o contrário. Só entra o que nem você, nem quem você segue, nem seus vizinhos tocaram, de autores que também não estão perto de você. É o pedaço do grafo mais longe do seu.
+- **Em alta** é o mesmo para todo mundo: o que mais gente está curtindo e salvando agora, com a recência pesando.
+
+### Sem viés
+
+A rede sugere, mas nunca empurra uma visão de mundo. Na prática:
+
+- **Só o grafo.** Nenhum assunto, conta ou lado ganha peso extra por decisão de alguém, porque a rede nem sabe o que é assunto. Vale a regra pétrea 5: ninguém tem tratamento especial.
+- **Rodízio fora da bolha.** Cada autor longe de você tem a mesma vez: primeiro o melhor post de cada um, depois o segundo, e assim por diante. A rede não escolhe qual "outro lado" mostrar.
+- **Toda sugestão mostra de onde veio.** O "por que estou vendo isto" traz os números, como "20 pessoas que curtem o que você curte também curtiram" ou "ninguém perto de você chegou aqui ainda".
+
+O preço dessa escolha precisa estar escrito: sem categoria, a rede também não consegue tratar política de um jeito diferente. Um post político entra na bolha de alguém pelo mesmo caminho que uma receita, porque gente parecida curtiu. A proteção contra bolha política é a pessoa poder sair dela quando quiser, com um toque, e ver exatamente por que cada post apareceu.
 
 Regras que valem para todos os modos:
 
 - **Parâmetros abertos.** Pesos e janelas de tempo ficam num arquivo público e versionado. Mudar um peso é uma mudança de código como qualquer outra.
-- **Por que estou vendo isto.** Cada item mostra os sinais que o colocaram ali, como "você segue", "tema: futebol" ou "furando a bolha: região Norte".
-- **Perfil de interesses visível.** O usuário vê e edita os temas que a rede acha que ele gosta.
-- **Dados sensíveis fora.** Posição política, religião, raça e saúde nunca são inferidas nem usadas para ranquear.
 - **Sem impulsionamento pago.** Não dá para pagar para aparecer mais no feed. Contas de governo, partidos e políticos seguem as mesmas regras de todos.
 - **Modo padrão** para quem acabou de chegar: a decidir (proposta: meio a meio).
 
@@ -181,6 +230,8 @@ O backend em Elixir atende o app e a web e orquestra tudo. O que precisa ser aud
 - **Vídeo** em várias resoluções, entregue por HLS, com codecs eficientes para economizar banda.
 - **Hospedagem** em nuvem de governo ou em data centers próprios: decisão em aberto.
 
+Na demonstração de hoje, o backend conversa com o motor em JSON, com os mesmos campos dos contratos em `proto/`. Os arquivos ficam em disco local, e ainda não existem Oban, tabelas particionadas, réplicas nem CDN. Tudo sobe com Docker Compose: banco, motor, backend e web.
+
 ## 8. Segurança com código aberto
 
 Com o código aberto, o atacante conhece o sistema tão bem quanto a equipe. Então a segurança tem que vir de chaves bem guardadas, de ninguém ter poder sozinho e de muita gente revisando o código, e não de esconder como o sistema funciona.
@@ -226,26 +277,138 @@ Quem decide os rumos da rede é um conselho com representantes de vários setore
 - **Entidade gestora.** Forma jurídica em aberto: fundação pública, organização social com contrato de gestão ou associação civil. O que importa é autonomia, orçamento plurianual e prestação de contas pública.
 - **Conselho multissetorial.** Governo, sociedade civil, academia, criadores e setor privado, inspirado no modelo do CGI.br. Nenhum setor tem maioria sozinho.
 - **Como uma regra muda.** Proposta pública no repositório, 30 dias de comentários (proposta), decisão do conselho e registro no log antes de entrar no ar. Correções urgentes de segurança entram antes e são explicadas depois.
-- **Licença.** Proposta: AGPL-3.0. Quem rodar uma versão modificada como serviço é obrigado a publicar o código.
+- **Licença.** AGPL-3.0, decidida em outubro de 2026. Quem rodar uma versão modificada como serviço é obrigado a publicar o código.
 - **Comunidade.** Repositório público, contribuições abertas, código de conduta e reuniões técnicas com ata pública.
 - **Contas abertas.** Custos mensais de infraestrutura, receita de anúncios e repasses publicados todo mês.
 - **Continuidade.** Exportação completa dos dados de cada usuário desde o início. Numa fase futura, interoperabilidade com protocolos abertos como o ActivityPub, para a rede sobreviver mesmo se um governo quiser desligá-la.
 
-## 11. Roadmap
+## 11. Roadmap e situação atual
 
-Cada fase só começa quando a anterior passa no portão, que é o critério objetivo para seguir em frente. As fases ainda não têm datas: o ritmo depende de quantas pessoas contribuírem.
+Cada fase só começa de verdade quando a anterior passa no portão, que é o critério objetivo para seguir em frente. As fases ainda não têm datas: o ritmo depende de quantas pessoas contribuírem.
 
-1. **Fase 0 · Manifesto e comunidade.** Manifesto publicado, repositório aberto, licença e regras de contribuição. Primeiros contribuidores e conselho provisório.
-    - Portão: as 3 decisões que travam a Fase 1 estão fechadas.
-2. **Fase 1 · Protótipo.** Texto curto e fotos, login gov.br em ambiente de teste, feed por data. React, Elixir e PostgreSQL funcionando de ponta a ponta.
-    - Portão: um grupo de teste usa o protótipo sem ajuda da equipe.
-3. **Fase 2 · Algoritmos e transparência.** Os modos de feed em Rust, "por que vejo isto" e perfil de interesses editável. Builds reproduzíveis, log público e verificador aberto.
-    - Portão: alguém de fora reproduz o build e confere o cálculo do feed.
-4. **Fase 3 · Vídeo.** Vídeos, shorts e lives, com transcodificação em Rust e entrega por CDN.
-    - Portão: custo por hora de vídeo medido e dentro do orçamento.
-5. **Fase 4 · Anúncios e pagamentos.** Anúncios nacionais e regionais, faixas decrescentes, repasse por PIX. Extrato aberto do criador e provas mensais de pagamento.
-    - Portão: auditoria externa de segurança e de pagamentos e revisão jurídica aprovadas.
-6. **Fase 5 · Piloto com o governo.** Atestação em produção, entidade gestora e conselho formados. Piloto público com orçamento definido e primeiro relatório de transparência.
+"Feito" aqui quer dizer feito na demonstração, com dados fictícios e rodando localmente. Nada disso está em produção.
+
+### Fase 0 · Manifesto e comunidade
+
+Portão: as decisões que travam a Fase 1 estão fechadas.
+
+Feito:
+
+- Manifesto, regras pétreas e este plano. As regras pétreas 3, 10 e 11 estão travadas como escritas.
+- Licença AGPL-3.0 no repositório.
+- Repositório organizado, com README, guia de contribuição, política de segurança e modelo de RFC.
+- CI rodando os testes do motor, do backend e do front, mais a varredura de segredos em cada envio.
+
+Falta:
+
+- Primeiros contribuidores de fora e o conselho provisório.
+- Fixar as ações da CI por hash de commit, como pede a seção 8.
+
+### Fase 1 · Protótipo
+
+Portão: um grupo de teste usa o protótipo sem ajuda da equipe.
+
+Feito:
+
+- React, Elixir, PostgreSQL e o motor em Rust funcionando de ponta a ponta, subindo com um comando.
+- Login Único do gov.br integrado como no roteiro oficial (OpenID Connect com PKCE, assinatura do token conferida pelas chaves públicas do gov.br). Do token a rede lê só o CPF e o nível da conta; nome, e-mail e foto são ignorados. Sem credencial configurada, a demo usa o gov.br simulado.
+- Conta básica que lê mas não publica. Perfil com apelido e selo de verificado.
+- CPF guardado como impressão digital, que barra contas duplicadas, e numa cópia selada com a chave dos guardiões. Abrir exige 3 de 5 guardiões, e a abertura nunca remonta a chave (seção 3).
+- Fluxo de ordem judicial: o setor jurídico registra a ordem, cada guardião manda a parte dele, a rede confere a prova de cada parte e, com três, abre o CPF e os acessos uma vez só. Cada abertura entra no registro público sem identificar a pessoa.
+- Registros de acesso do Marco Civil, com o IP selado e apagados depois de seis meses.
+- Moderação básica: regras de conteúdo públicas e numeradas, denúncia em dois toques, fila, remoção citando a regra, aviso ao autor e recurso julgado por outra pessoa da moderação. As decisões alimentam números públicos.
+- Menores de idade com perfil privado (só quem eles seguem vê os posts), sem anúncio e sem receber por anúncio.
+- Baixar todos os próprios dados num arquivo e apagar a conta (regra pétrea 11).
+- Texto curto de 140 caracteres sem respostas, foto com descrição para leitor de tela, curtir, salvar, seguir e perfil.
+- Publicação num campo só, com o tipo vindo do arquivo, anexo por colar ou arrastar e Ctrl+Enter para publicar.
+- Site instalável como app no celular (PWA), que nunca guarda no aparelho o que a pessoa viu.
+- Interface pensada para celular, com quatro temas (claro, escuro, lima e nerd) e o logo.
+- Licença AGPL-3.0.
+
+Falta:
+
+- Credenciais de homologação do gov.br e, depois, as de produção, que só saem para serviço em domínio de governo aprovado pela Secretaria de Governo Digital.
+- Uma fonte confiável de idade. O Login Único não informa a data de nascimento, então hoje toda conta que entra por ele nasce com as proteções de menor (seção 13).
+- O grupo de teste real.
+
+### Fase 2 · Algoritmos e transparência
+
+Portão: alguém de fora reproduz o build e confere o cálculo do feed.
+
+Feito:
+
+- Motor de feed em Rust por grafo, sem tema, tag ou categoria. Tem os modos na bolha, furando a bolha, meio a meio e por data, mais a aba "Em alta".
+- Vizinhos de gosto parecido, rodízio de autores fora da bolha, janela de tempo e tempo mínimo de vídeo.
+- Pesos públicos em `params/feed.toml`. O motor informa o hash do arquivo que está usando, e a página de transparência mostra os dois.
+- "Por que estou vendo isto" com os números de cada sugestão.
+- Cálculo determinístico, só com números inteiros, coberto por testes.
+- Se o motor cair, o feed passa a mostrar só quem a pessoa segue, por data, em vez de parar.
+
+Falta:
+
+- Build reproduzível com Nix (o arquivo existe, mas nunca foi testado) e assinatura com Sigstore.
+- Log público de versões e o verificador aberto.
+- A ferramenta que refaz o feed de uma pessoa a partir dos dados comprometidos, com a raiz Merkle diária.
+- Escala. Hoje o grafo é montado a cada pedido, com no máximo 300 posts candidatos. Uma rede de verdade precisa pré-calcular vizinhos, particionar as tabelas e ter réplicas de leitura.
+- gRPC entre o backend e o motor.
+- Ajustar os pesos do grafo com uso real, por RFC.
+
+### Fase 3 · Vídeo
+
+Portão: custo por hora de vídeo medido e dentro do orçamento.
+
+Feito:
+
+- Vídeos e shorts com envio, player e feed próprio de shorts.
+- Vídeo em pé de até 3 minutos vira short sozinho.
+- Vídeos de exemplo gerados automaticamente para a demonstração.
+
+Falta:
+
+- Transcodificação em várias resoluções e entrega por HLS. Hoje o vídeo é servido do jeito que chegou.
+- Armazenamento de objetos no padrão S3, no lugar do disco local, e CDN.
+- Envio que retoma de onde parou e modo econômico de dados.
+- Legendas automáticas.
+- Lives.
+- Medir o custo por hora de vídeo.
+
+### Fase 4 · Anúncios e pagamentos
+
+Portão: auditoria externa de segurança e de pagamentos e revisão jurídica aprovadas.
+
+Feito:
+
+- Motor de anúncios em Rust. Horas por dia viram exibições, a view é paga por faixas decrescentes como no imposto de renda, e o anúncio dos shorts é dividido pelo tempo assistido.
+- Anúncio nacional e regional, com o regional aparecendo só para quem é da mesma cidade.
+- Um anúncio a cada 6 shorts, e pontos de anúncio escolhidos pelo criador em cada vídeo.
+- Só gov.br prata ou ouro recebe. A view só conta a partir de 2 segundos e nunca a do próprio criador.
+- Painel do criador com o pagamento estimado do mês e a faixa em que ele está.
+- Biblioteca pública de anúncios na página de transparência.
+
+Falta:
+
+- Anunciante comprando campanha com o gov.br da empresa.
+- Entrega das exibições espalhada ao longo do dia e pelo país.
+- Cobrança, fechamento mensal e repasse por PIX.
+- Extrato aberto por vídeo e provas mensais de pagamento.
+- Antifraude além do básico.
+- Anúncio em lives.
+- As decisões de faixas, proporções e destino da diferença (seção 13).
+
+### Fase 5 · Piloto com o governo
+
+Portão: piloto público rodando, com orçamento definido e primeiro relatório de transparência.
+
+Feito: nada ainda, e é o esperado.
+
+Falta:
+
+- Hospedagem e atestação em produção.
+- Entidade gestora, conselho e os cinco guardiões.
+- Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
+- Encarregado de dados e relatório de impacto à proteção de dados.
+- Auditoria externa, recompensa por falhas e lista pública de dependências.
+- Orçamento e o primeiro relatório de transparência.
 
 ## 12. Riscos
 
@@ -263,17 +426,32 @@ O risco mais sério é a rede passar a ser vista como ferramenta do governo do m
 | Falha explorada no código aberto | Vazamento de dados | Bug bounty, auditorias por fase, defesa em camadas |
 | Dependência de chips estrangeiros | Atestação com confiança limitada | Dois fornecedores e verificadores independentes |
 
-## 13. Decisões em aberto
+## 13. Decisões
 
-As três primeiras travam a Fase 1. As outras podem esperar até a fase em que entram.
+Já decidido:
 
-- [x] Perfil público: apelido com selo de verificado (decidido)
-- [ ] Limite de caracteres do texto curto (proposta: 140)
-- [ ] Licença do código (proposta: AGPL-3.0)
-- [ ] Interações no texto curto: curtir e repostar bastam?
-- [ ] Modo padrão do feed para quem acabou de chegar (proposta: meio a meio)
-- [ ] App mobile em React Native ou como aplicativo web instalável
-- [ ] Rateio dos shorts por tempo assistido ou em partes iguais
+- [x] Perfil público: apelido com selo de verificado
+- [x] Texto curto: até 140 caracteres e sem respostas
+- [x] Sem tema, tag ou categoria: o feed sai só do grafo de quem assiste, curte e segue (seção 4)
+- [x] Interesses não se escolhem numa tela: vêm do que a pessoa faz, e descurtir desfaz
+- [x] O tipo do post sai do arquivo, sem a pessoa escolher
+- [x] "Em alta" fica numa aba própria, igual para todo mundo
+- [x] Licença: AGPL-3.0
+- [x] Comentários em fotos e vídeos ficam para depois da Fase 1
+- [x] Texto curto não tem repostar, por enquanto
+- [x] App de celular da Fase 1: o site instalável (PWA), sem app nativo
+- [x] Menor de idade: perfil privado (seguir de volta é aprovar), sem anúncio e sem receber por anúncio
+- [x] Idade desconhecida conta como menor, até existir uma fonte confiável
+
+Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
+
+- [ ] De onde vem a idade. O Login Único não informa a data de nascimento: precisa de convênio com outra base do governo ou de outro mecanismo que o ECA Digital aceite
+- [ ] Cerimônia distribuída (DKG) dos guardiões, antes do piloto
+
+- [ ] Como ler a regra pétrea 3, que fala em usar "o conteúdo do vídeo" nos anúncios, numa rede sem categorias. Hoje os anúncios usam só a região
+- [ ] Modo padrão do feed para quem acabou de chegar (a demo usa meio a meio)
+- [ ] Pesos do grafo: janela de 90 dias, 10 segundos de vídeo, 2 posts em comum e 10% de sobreposição para virar vizinho são o ponto de partida
+- [ ] Rateio dos shorts por tempo assistido (como está na demo) ou em partes iguais
 - [ ] Anúncios em lives
 - [ ] Faixas e percentuais do pagamento decrescente
 - [ ] Destino da diferença das faixas: fundo de infraestrutura ou bônus para criadores pequenos

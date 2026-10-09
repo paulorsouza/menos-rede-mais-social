@@ -1,0 +1,9 @@
+.git
+.env
+.claude
+**/node_modules
+**/target
+apps/web/dist
+apps/backend/_build
+apps/backend/deps
+apps/backend/priv/uploads
