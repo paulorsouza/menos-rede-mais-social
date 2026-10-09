@@ -1,82 +1,62 @@
-import { useEffect, useState } from 'react'
-import { FEED_MODES, type FeedMode } from './feedModes'
+import type { ReactNode } from 'react'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router'
+import { AppProvider, useApp } from './app-context'
+import { Layout } from './components/Layout'
+import { Empty, Loading } from './components/States'
+import { CreatePage } from './pages/CreatePage'
+import { CreatorPage } from './pages/CreatorPage'
+import { DataPage } from './pages/DataPage'
+import { HomePage } from './pages/HomePage'
+import { LoginPage } from './pages/LoginPage'
+import { ModerationPage } from './pages/ModerationPage'
+import { NoticesPage } from './pages/NoticesPage'
+import { OrdersPage } from './pages/OrdersPage'
+import { ProfilePage } from './pages/ProfilePage'
+import { ShortsPage } from './pages/ShortsPage'
+import { TransparencyPage } from './pages/TransparencyPage'
+import { TrendingPage } from './pages/TrendingPage'
+import { VideosPage } from './pages/VideosPage'
 
-type Section = 'fotos' | 'textos' | 'videos'
+function RequireAccount({ children }: { children: ReactNode }) {
+  const { me, loadingMe } = useApp()
+  if (loadingMe) return <Loading />
+  if (!me) return <Navigate to="/entrar" replace />
+  return children
+}
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'fotos', label: 'Fotos' },
-  { id: 'textos', label: 'Textos' },
-  { id: 'videos', label: 'Vídeos' },
-]
-
-type BackendStatus = 'checking' | 'online' | 'offline'
-
-const BACKEND_STATUS_TEXT: Record<BackendStatus, string> = {
-  checking: 'conferindo o backend…',
-  online: 'backend no ar',
-  offline: 'backend fora do ar (rode mix phx.server em apps/backend)',
+function NotFound() {
+  return (
+    <div className="page">
+      <Empty>
+        Página não encontrada. <Link to="/">Voltar ao início</Link>
+      </Empty>
+    </div>
+  )
 }
 
 export default function App() {
-  const [section, setSection] = useState<Section>('fotos')
-  const [mode, setMode] = useState<FeedMode>('mixed')
-  const [backend, setBackend] = useState<BackendStatus>('checking')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((response) => setBackend(response.ok ? 'online' : 'offline'))
-      .catch(() => setBackend('offline'))
-  }, [])
-
-  const currentMode = FEED_MODES.find((option) => option.id === mode)
-
   return (
-    <div className="app">
-      <header className="topbar">
-        <h1 className="logo">-rede+social</h1>
-        <nav aria-label="Seções">
-          {SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="tab"
-              aria-pressed={section === item.id}
-              onClick={() => setSection(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </header>
-
-      <main>
-        <fieldset className="feed-mode">
-          <legend>Como você quer ver o seu feed?</legend>
-          <div className="options">
-            {FEED_MODES.map((option) => (
-              <label key={option.id} className="option">
-                <input
-                  type="radio"
-                  name="feed-mode"
-                  value={option.id}
-                  checked={mode === option.id}
-                  onChange={() => setMode(option.id)}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          <p className="hint">{currentMode?.description}</p>
-        </fieldset>
-
-        <section className="feed" aria-live="polite">
-          <p className="empty">Ainda não tem nada por aqui. Os primeiros posts chegam com o protótipo da Fase 1.</p>
-        </section>
-      </main>
-
-      <footer className="footer">
-        <span className={`status status-${backend}`}>{BACKEND_STATUS_TEXT[backend]}</span>
-      </footer>
-    </div>
+    <AppProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/entrar" element={<LoginPage />} />
+          <Route element={<Layout />}>
+            <Route index element={<RequireAccount><HomePage /></RequireAccount>} />
+            <Route path="shorts" element={<RequireAccount><ShortsPage /></RequireAccount>} />
+            <Route path="videos" element={<RequireAccount><VideosPage /></RequireAccount>} />
+            <Route path="em-alta" element={<RequireAccount><TrendingPage /></RequireAccount>} />
+            <Route path="criar" element={<RequireAccount><CreatePage /></RequireAccount>} />
+            <Route path="criador" element={<RequireAccount><CreatorPage /></RequireAccount>} />
+            <Route path="avisos" element={<RequireAccount><NoticesPage /></RequireAccount>} />
+            <Route path="dados" element={<RequireAccount><DataPage /></RequireAccount>} />
+            <Route path="moderacao" element={<RequireAccount><ModerationPage /></RequireAccount>} />
+            <Route path="ordens" element={<RequireAccount><OrdersPage /></RequireAccount>} />
+            <Route path="transparencia" element={<TransparencyPage />} />
+            <Route path="u/:nickname" element={<ProfilePage />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
   )
 }
