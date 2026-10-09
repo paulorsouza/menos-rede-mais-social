@@ -40,6 +40,10 @@ pub struct Engines {
     pub feed_file: LoadedFile,
     pub ads_file: LoadedFile,
     pub guardians_file: LoadedFile,
+    /// Chave que assina os recibos do feed. Nasce quando o motor sobe e não
+    /// sai da memória; a parte pública vai para o registro público. Numa
+    /// máquina atestada, ela fica presa ao binário que está rodando.
+    pub receipt_key: ed25519_dalek::SigningKey,
     /// Só na demonstração: as fatias dos guardiões de teste, para simular uma
     /// ordem judicial sem as cinco instituições. Em produção fica vazio.
     pub demo_shares: Vec<cofre::Share>,
@@ -65,6 +69,7 @@ impl Engines {
             ads,
             guardians,
             demo_shares: Vec::new(),
+            receipt_key: ed25519_dalek::SigningKey::generate(&mut rand_core::OsRng),
         })
     }
 
@@ -131,6 +136,7 @@ struct Transparency {
     feed_params: LoadedFile,
     ads_params: LoadedFile,
     guardians_params: LoadedFile,
+    receipt_public_key: String,
     feed_settings: feed_engine::Params,
     payout_bands: Vec<ads_engine::PayoutBand>,
     shorts_ad_every: u32,
@@ -143,21 +149,11 @@ async fn transparency(State(engines): Shared) -> Json<Transparency> {
         feed_params: engines.feed_file.clone(),
         ads_params: engines.ads_file.clone(),
         guardians_params: engines.guardians_file.clone(),
+        receipt_public_key: engines.receipt_public_key(),
         feed_settings: engines.feed.clone(),
         payout_bands: engines.ads.payout_bands.clone(),
         shorts_ad_every: engines.ads.shorts_ad_every,
     })
-}
-
-#[derive(Deserialize)]
-struct RankRequest {
-    mode: feed_engine::FeedMode,
-    viewer: feed_engine::Viewer,
-    candidates: Vec<feed_engine::Candidate>,
-    /// Quem curtiu e assistiu o quê: o grafo de onde sai o feed.
-    #[serde(default)]
-    edges: Vec<feed_engine::Edge>,
-    now: i64,
 }
 
 #[derive(Serialize)]
@@ -167,17 +163,22 @@ struct RankResponse {
     engine_build: &'static str,
     params_version: u32,
     params_sha256: String,
+    receipt: feed_engine::receipt::Receipt,
 }
 
-async fn rank(State(engines): Shared, Json(request): Json<RankRequest>) -> Json<RankResponse> {
+async fn rank(
+    State(engines): Shared,
+    Json(input): Json<feed_engine::receipt::RankInput>,
+) -> Json<RankResponse> {
     let items = feed_engine::rank(
-        request.mode,
-        &request.viewer,
-        &request.candidates,
-        &request.edges,
+        input.mode,
+        &input.viewer,
+        &input.candidates,
+        &input.edges,
         &engines.feed,
-        request.now,
+        input.now,
     );
+    let receipt = engines.sign_receipt(&input, &items);
 
     Json(RankResponse {
         items,
@@ -185,7 +186,39 @@ async fn rank(State(engines): Shared, Json(request): Json<RankRequest>) -> Json<
         engine_build: ENGINE_BUILD,
         params_version: engines.feed.version,
         params_sha256: engines.feed_file.sha256.clone(),
+        receipt,
     })
+}
+
+impl Engines {
+    pub fn receipt_public_key(&self) -> String {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD
+            .encode(self.receipt_key.verifying_key().to_bytes())
+    }
+
+    /// Assina o recibo de um cálculo de feed.
+    pub fn sign_receipt(
+        &self,
+        input: &feed_engine::receipt::RankInput,
+        items: &[feed_engine::RankedItem],
+    ) -> feed_engine::receipt::Receipt {
+        use base64::Engine as _;
+        use ed25519_dalek::Signer;
+
+        let mut receipt = feed_engine::receipt::Receipt {
+            input_sha256: input.sha256(),
+            output_sha256: feed_engine::receipt::output_sha256(items),
+            params_sha256: self.feed_file.sha256.clone(),
+            engine_version: ENGINE_VERSION.to_string(),
+            engine_build: ENGINE_BUILD.to_string(),
+            now: input.now,
+            signature: String::new(),
+        };
+        let signature = self.receipt_key.sign(receipt.signed_message().as_bytes());
+        receipt.signature = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
+        receipt
+    }
 }
 
 #[derive(Deserialize)]
@@ -562,6 +595,8 @@ mod tests {
         assert_eq!(body["items"][0]["post_id"], 10);
         assert_eq!(body["items"][0]["reasons"][0]["kind"], "you_follow");
         assert_eq!(body["params_version"], 2);
+        assert_eq!(body["receipt"]["params_sha256"], body["params_sha256"]);
+        assert!(body["receipt"]["signature"].as_str().unwrap().len() > 80);
     }
 
     #[tokio::test]
