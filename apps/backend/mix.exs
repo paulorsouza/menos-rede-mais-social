@@ -47,7 +47,10 @@ defmodule RedeSocial.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"},
+      # Confere a assinatura do id_token do gov.br (Login Único).
+      {:jose, "~> 1.11"}
     ]
   end
 
@@ -62,8 +65,14 @@ defmodule RedeSocial.MixProject do
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
+      # Volta a demonstração ao estado inicial: apaga as mídias e recria os dados.
+      "demo.reset": [&remove_uploads/1, "ecto.drop --force-drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
+  end
+
+  defp remove_uploads(_args) do
+    File.rm_rf!(Application.get_env(:rede_social, :uploads_dir, "priv/uploads"))
   end
 end

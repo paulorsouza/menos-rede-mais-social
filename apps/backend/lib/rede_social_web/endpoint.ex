@@ -8,6 +8,9 @@ defmodule RedeSocialWeb.Endpoint do
     store: :cookie,
     key: "_rede_social_key",
     signing_salt: "/89Fsf2d",
+    # Cifrada, e não só assinada: entre a volta do gov.br e a escolha do
+    # apelido, o CPF fica alguns minutos na sessão.
+    encryption_salt: "h7Ql2vXq",
     same_site: "Lax"
   ]
 
@@ -27,6 +30,11 @@ defmodule RedeSocialWeb.Endpoint do
     only: RedeSocialWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
+  # Fotos e vídeos enviados pelas pessoas.
+  plug Plug.Static,
+    at: "/uploads",
+    from: Application.compile_env(:rede_social, :uploads_dir, "priv/uploads")
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
@@ -38,7 +46,8 @@ defmodule RedeSocialWeb.Endpoint do
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    # Vídeos podem passar dos 8 MB do padrão.
+    parsers: [:urlencoded, {:multipart, length: 200_000_000}, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 

@@ -23,6 +23,22 @@ end
 config :rede_social, RedeSocialWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+if engine_url = System.get_env("ENGINE_URL") do
+  config :rede_social, :engine_url, engine_url
+end
+
+# Credenciais do Login Único. Homologação: sso.staging.acesso.gov.br.
+# Produção (sso.acesso.gov.br) só é liberada para serviço em domínio de
+# governo e aprovado pela Secretaria de Governo Digital.
+if client_id = System.get_env("GOVBR_CLIENT_ID") do
+  config :rede_social, :govbr,
+    client_id: client_id,
+    client_secret: System.fetch_env!("GOVBR_CLIENT_SECRET"),
+    redirect_uri: System.fetch_env!("GOVBR_REDIRECT_URI"),
+    base_url: System.get_env("GOVBR_BASE_URL", "https://sso.staging.acesso.gov.br"),
+    age_fallback: :minor
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

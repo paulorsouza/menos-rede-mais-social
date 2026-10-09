@@ -16,6 +16,23 @@ config :rede_social, RedeSocial.Repo,
 # Chave da impressão digital do CPF, só para testes.
 config :rede_social, :cpf_fingerprint_key, "chave-de-teste-nao-usar-em-producao"
 
+# Nos testes o motor é simulado com Req.Test, e os uploads vão para tmp/. O
+# cofre do CPF usa um falso que imita as regras do motor, e a limpeza dos
+# registros de acesso não roda sozinha.
+config :rede_social,
+  engine_req_options: [plug: {Req.Test, RedeSocial.Engine}],
+  uploads_dir: "tmp/test_uploads",
+  vault: RedeSocial.Vault.Fake,
+  access_log_janitor: false,
+  govbr_req_options: [plug: {Req.Test, RedeSocial.GovBr}]
+
+config :rede_social, :govbr,
+  client_id: "cliente-de-teste",
+  client_secret: "segredo-de-teste",
+  redirect_uri: "http://localhost:5173/api/govbr/retorno",
+  base_url: "https://sso.staging.acesso.gov.br",
+  age_fallback: :minor
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :rede_social, RedeSocialWeb.Endpoint,
@@ -32,3 +49,5 @@ config :phoenix, :plug_init_mode, :runtime
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+config :rede_social, :demo_mode, true

@@ -18,6 +18,12 @@ defmodule RedeSocial.Application do
       RedeSocialWeb.Endpoint
     ]
 
+    # Apaga os registros de acesso que passaram dos seis meses da lei.
+    children =
+      if Application.get_env(:rede_social, :access_log_janitor, true),
+        do: children ++ [RedeSocial.AccessLogs.Janitor],
+        else: children
+
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: RedeSocial.Supervisor]

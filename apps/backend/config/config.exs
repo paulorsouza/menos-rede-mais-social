@@ -11,6 +11,21 @@ config :rede_social,
   ecto_repos: [RedeSocial.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+config :rede_social,
+  # Motor de feed e anúncios (services/engine-server).
+  engine_url: "http://localhost:7070",
+  uploads_dir: "priv/uploads",
+  # Valor base pago por mil views na primeira faixa, em centavos. Ilustrativo
+  # até a decisão do conselho (seção 6 do plano).
+  base_cents_per_thousand: 200
+
+# Login Único do gov.br. Fica desligado até ter client_id (config/runtime.exs).
+# O gov.br não informa a data de nascimento: sem outra fonte, a conta nasce
+# com as proteções de menor de idade (age_fallback).
+config :rede_social, :govbr,
+  base_url: "https://sso.staging.acesso.gov.br",
+  age_fallback: :minor
+
 # Configure the endpoint
 config :rede_social, RedeSocialWeb.Endpoint,
   url: [host: "localhost"],

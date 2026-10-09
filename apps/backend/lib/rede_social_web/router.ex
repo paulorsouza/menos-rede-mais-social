@@ -3,11 +3,101 @@ defmodule RedeSocialWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
+    plug RedeSocialWeb.Auth, :fetch_current_account
+  end
+
+  # Ida e volta do gov.br: é navegação do navegador, não chamada JSON.
+  pipeline :browser_redirect do
+    plug :fetch_session
+  end
+
+  pipeline :authenticated do
+    plug RedeSocialWeb.Auth, :require_account
+  end
+
+  pipeline :moderator do
+    plug RedeSocialWeb.Auth, :require_moderator
+  end
+
+  pipeline :legal do
+    plug RedeSocialWeb.Auth, :require_legal_officer
+  end
+
+  pipeline :demo do
+    plug RedeSocialWeb.Auth, :require_demo_mode
+  end
+
+  scope "/api/govbr", RedeSocialWeb do
+    pipe_through :browser_redirect
+
+    get "/entrar", GovBrController, :start
+    get "/retorno", GovBrController, :callback
   end
 
   scope "/api", RedeSocialWeb do
     pipe_through :api
 
+    get "/govbr/status", GovBrController, :status
+    post "/govbr/cadastro", GovBrController, :register
+
     get "/health", HealthController, :show
+    get "/transparency", TransparencyController, :show
+    get "/me", SessionController, :show
+    delete "/session", SessionController, :delete
+    get "/accounts/:nickname", AccountController, :show
+    get "/posts/:id", PostController, :show
+    get "/moderation/rules", ModerationController, :rules
+
+    # Só na demonstração: pessoas de exemplo e gov.br simulado.
+    scope "/" do
+      pipe_through :demo
+
+      post "/session", SessionController, :create
+      get "/demo/personas", DemoController, :personas
+      get "/govbr-simulado/cpf-de-teste", DemoController, :test_cpf
+      post "/govbr-simulado/cadastro", DemoController, :register
+      post "/govbr-simulado/conta-basica", DemoController, :register_basic
+    end
+
+    scope "/" do
+      pipe_through :authenticated
+
+      get "/feed", FeedController, :index
+      get "/shorts", FeedController, :shorts
+      post "/posts", PostController, :create
+      post "/posts/:id/like", PostController, :like
+      post "/posts/:id/save", PostController, :save
+      post "/posts/:id/views", PostController, :view
+      post "/posts/:id/report", PostController, :report
+      post "/posts/:id/appeal", PostController, :appeal
+      get "/me/notices", NoticeController, :index
+      get "/me/export", PrivacyController, :export
+      delete "/me", PrivacyController, :delete
+      post "/me/notices/read", NoticeController, :read
+      post "/accounts/:nickname/follow", AccountController, :follow
+      post "/ads/impressions", AdController, :impression
+      get "/creator/dashboard", CreatorController, :show
+
+      scope "/identification" do
+        pipe_through :legal
+
+        get "/orders", IdentificationController, :index
+        post "/orders", IdentificationController, :create
+        get "/orders/:id/package", IdentificationController, :package
+        post "/orders/:id/partials", IdentificationController, :submit
+        post "/orders/:id/simulate/:guardian", IdentificationController, :simulate
+        post "/orders/:id/open", IdentificationController, :open
+      end
+
+      scope "/moderation" do
+        pipe_through :moderator
+
+        get "/queue", ModerationController, :queue
+        post "/posts/:id/remove", ModerationController, :remove
+        post "/posts/:id/keep", ModerationController, :keep
+        post "/appeals/:id/decide", ModerationController, :decide
+      end
+    end
   end
 end

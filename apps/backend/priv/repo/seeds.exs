@@ -1,11 +1,8 @@
-# Script for populating the database. You can run it as:
+# Dados de demonstração. Só rodam com o modo de demonstração ligado (dev).
 #
 #     mix run priv/repo/seeds.exs
 #
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     RedeSocial.Repo.insert!(%RedeSocial.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
+# Para começar a demo do zero: mix ecto.reset
+if RedeSocial.Demo.enabled?() do
+  RedeSocial.Demo.Seeds.run()
+end
