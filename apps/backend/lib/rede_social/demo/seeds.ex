@@ -443,6 +443,9 @@ defmodule RedeSocial.Demo.Seeds do
     engage_personas(personas, posts)
     create_reports(crowd, personas, now)
 
+    # O primeiro retrato do grafo, para a conta do feed já sair com provas.
+    {:ok, _snapshot} = RedeSocial.GraphCommitments.take_snapshot()
+
     create_campaigns()
 
     Logger.info(

@@ -4,6 +4,8 @@ defmodule RedeSocialWeb.FeedController do
   alias RedeSocial.{Accounts, Ads, Feed}
   alias RedeSocialWeb.Present
 
+  action_fallback RedeSocialWeb.FallbackController
+
   @doc """
   Feed de textos e fotos (kind=home), de vídeos (kind=videos) ou de tudo
   (kind=all, usado pela aba "Em alta").
@@ -59,6 +61,29 @@ defmodule RedeSocialWeb.FeedController do
       json(conn, %{mode: feed.mode, engine: feed.engine, ad_every: feed.ad_every, items: items})
     else
       invalid_mode(conn)
+    end
+  end
+
+  @doc "A conta do feed (entrada, saída e recibo), para baixar e conferir."
+  def account(conn, params) do
+    mode = Map.get(params, "mode", "mixed")
+
+    kinds =
+      case params["kind"] do
+        "videos" -> [:video]
+        "all" -> [:text, :photo, :video, :short]
+        "shorts" -> [:short]
+        _ -> [:text, :photo]
+      end
+
+    with true <- Feed.valid_mode?(mode) || :invalid,
+         {:ok, account} <- Feed.account(conn.assigns.current_account, mode, kinds) do
+      conn
+      |> put_resp_header("content-disposition", ~s(attachment; filename="conta-do-feed.json"))
+      |> json(account)
+    else
+      :invalid -> invalid_mode(conn)
+      error -> error
     end
   end
 

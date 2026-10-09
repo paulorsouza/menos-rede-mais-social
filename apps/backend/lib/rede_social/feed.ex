@@ -8,7 +8,7 @@ defmodule RedeSocial.Feed do
   motor e devolve os posts com o motivo de cada um.
   """
 
-  alias RedeSocial.{Engine, Social}
+  alias RedeSocial.{Engine, GraphCommitments, Social}
   alias RedeSocial.Accounts.Account
 
   @modes ~w(bubble outside_bubble mixed chronological public_ranking)
@@ -62,13 +62,130 @@ defmodule RedeSocial.Feed do
             end
           end)
 
-        {:ok, %{mode: mode, entries: entries, engine: engine_info(response)}}
+        {:ok,
+         %{
+           mode: mode,
+           entries: entries,
+           engine: engine_info(response),
+           input: request,
+           output: items,
+           receipt: response["receipt"],
+           index: index
+         }}
 
       {:error, _reason} ->
         {:ok,
          %{mode: mode, entries: fallback(posts, follows, stats), engine: %{status: "offline"}}}
     end
   end
+
+  @doc """
+  A conta do feed, para quem quiser conferir: a entrada exata que foi para o
+  motor, a saída e o recibo assinado. Os ids de conta viram números só deste
+  pedido, então o arquivo não revela quem curtiu o quê.
+  """
+  def account(%Account{} = viewer, mode, kinds) do
+    with {:ok, %{receipt: %{} = receipt} = feed} <- build(viewer, mode, kinds),
+         {:ok, engine} <- Engine.transparency() do
+      {:ok,
+       %{
+         sobre:
+           "Conta do seu feed na -rede+social. Para conferir, rode o verificador aberto " <>
+             "(services/verificador) com este arquivo e o params/feed.toml da versão indicada.",
+         entrada: feed.input,
+         saida: feed.output,
+         recibo: receipt,
+         chave_recibos: engine["receipt_public_key"]
+       }
+       |> Map.merge(data_proofs(viewer, feed))}
+    else
+      _ -> {:error, :engine_unavailable}
+    end
+  end
+
+  # As provas de que cada ligação usada no feed estava no último retrato do
+  # grafo, cuja raiz está no registro público. Os ids continuam sendo os
+  # números deste pedido; a tabela de pseudônimos liga cada número ao
+  # pseudônimo do retrato, sem revelar a conta.
+  defp data_proofs(viewer, feed) do
+    case GraphCommitments.latest() do
+      nil ->
+        %{}
+
+      snapshot ->
+        by_number = Map.new(feed.index, fn {account_id, number} -> {number, account_id} end)
+
+        alias_of = fn number ->
+          GraphCommitments.pseudonym(snapshot, Map.fetch!(by_number, number))
+        end
+
+        edge_texts =
+          Enum.map(feed.input.edges, fn edge ->
+            case edge.kind do
+              "like" ->
+                GraphCommitments.like_text(alias_of.(edge.user_id), edge.post_id, edge.at)
+
+              "watch" ->
+                GraphCommitments.watch_text(
+                  alias_of.(edge.user_id),
+                  edge.post_id,
+                  edge.watched_ms,
+                  edge.at
+                )
+            end
+          end)
+
+        viewer_number = feed.input.viewer.id
+        since = Social.following_since(viewer)
+
+        follows =
+          for number <- feed.input.viewer.follows do
+            {number, Map.fetch!(since, Map.fetch!(by_number, number))}
+          end
+
+        follow_texts =
+          for {number, at} <- follows,
+              do: GraphCommitments.follow_text(alias_of.(viewer_number), alias_of.(number), at)
+
+        {edge_proofs, follow_proofs} =
+          snapshot
+          |> GraphCommitments.proofs(edge_texts ++ follow_texts)
+          |> Enum.split(length(edge_texts))
+
+        %{
+          retrato: %{
+            id: snapshot.id,
+            raiz: hex(snapshot.root),
+            tamanho: snapshot.size,
+            em: snapshot.taken_at,
+            posicao_no_registro: snapshot.registro_position
+          },
+          pseudonimos:
+            Map.new(feed.index, fn {_account, number} -> {number, alias_of.(number)} end),
+          provas: %{
+            ligacoes:
+              for {proof, item} <- Enum.with_index(edge_proofs), proof != nil do
+                %{item: item, folha: proof.position, caminho: Enum.map(proof.proof, &hex/1)}
+              end,
+            seguindo:
+              for {proof, {number, at}} <- Enum.zip(follow_proofs, follows), proof != nil do
+                %{
+                  seguido: number,
+                  desde: at,
+                  folha: proof.position,
+                  caminho: Enum.map(proof.proof, &hex/1)
+                }
+              end
+          },
+          recentes: %{
+            ligacoes: for({nil, item} <- Enum.with_index(edge_proofs), do: item),
+            seguindo: for({nil, {number, _at}} <- Enum.zip(follow_proofs, follows), do: number)
+          }
+        }
+    end
+  end
+
+  defp hex(binary), do: Base.encode16(binary, case: :lower)
 
   defp candidate(post, index, stats) do
     post_stats = Map.fetch!(stats, post.id)

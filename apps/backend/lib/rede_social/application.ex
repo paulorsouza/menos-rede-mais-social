@@ -24,6 +24,18 @@ defmodule RedeSocial.Application do
         do: children ++ [RedeSocial.AccessLogs.Janitor],
         else: children
 
+    # Tira o retrato do grafo e publica a raiz no registro.
+    children =
+      if Application.get_env(:rede_social, :graph_photographer, true),
+        do: children ++ [RedeSocial.GraphCommitments.Photographer],
+        else: children
+
+    # Anota no registro público cada versão nova do motor e dos parâmetros.
+    children =
+      if Application.get_env(:rede_social, :registro_watcher, true),
+        do: children ++ [RedeSocial.Registro.Watcher],
+        else: children
+
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: RedeSocial.Supervisor]

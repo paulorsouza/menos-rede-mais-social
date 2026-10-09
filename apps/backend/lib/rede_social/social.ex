@@ -243,6 +243,13 @@ defmodule RedeSocial.Social do
     Repo.all(from f in Follow, where: f.follower_id == ^id, select: f.followed_id)
   end
 
+  @doc "Quem a conta segue e desde quando (segundos Unix)."
+  def following_since(%Account{id: id}) do
+    from(f in Follow, where: f.follower_id == ^id, select: {f.followed_id, f.inserted_at})
+    |> Repo.all()
+    |> Map.new(fn {followed, at} -> {followed, unix(at)} end)
+  end
+
   def following?(nil, _account), do: false
 
   def following?(%Account{} = viewer, %Account{} = account) do

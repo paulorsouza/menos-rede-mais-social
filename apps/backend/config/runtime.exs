@@ -123,5 +123,9 @@ if config_env() == :prod do
   config :rede_social,
     cpf_fingerprint_key:
       System.get_env("CPF_FINGERPRINT_KEY") ||
-        raise("a variável de ambiente CPF_FINGERPRINT_KEY não foi definida")
+        raise("a variável de ambiente CPF_FINGERPRINT_KEY não foi definida"),
+    # Semente (32 bytes em base64) da chave que assina o registro público.
+    registro_signing_seed:
+      System.get_env("REGISTRO_CHAVE") ||
+        raise("a variável de ambiente REGISTRO_CHAVE não foi definida")
 end

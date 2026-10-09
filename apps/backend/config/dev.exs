@@ -13,6 +13,12 @@ config :rede_social, RedeSocial.Repo,
 # Chave da impressão digital do CPF, só para desenvolvimento.
 config :rede_social, :cpf_fingerprint_key, "chave-de-desenvolvimento-nao-usar-em-producao"
 
+# Na demonstração o grafo é retratado a cada meia hora; em produção, uma vez por dia.
+config :rede_social, :graph_snapshot_minutes, 30
+
+# Semente da chave Ed25519 que assina o registro público. Só para desenvolvimento.
+config :rede_social, :registro_signing_seed, "atZfqZvZc3swhwCVT9RJ8KAt0otqQSrTvzwTz0hJxm0="
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

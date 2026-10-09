@@ -17,7 +17,7 @@ defmodule RedeSocial.Identification do
   import Ecto.Query
 
   alias RedeSocial.Accounts.{Account, CPF}
-  alias RedeSocial.{AccessLogs, Accounts, Demo, Repo, Vault}
+  alias RedeSocial.{AccessLogs, Accounts, Demo, Registro, Repo, Vault}
   alias RedeSocial.Identification.{Order, OrderPartial}
 
   @guardians 1..5
@@ -192,13 +192,23 @@ defmodule RedeSocial.Identification do
       end)
 
     with {:ok, opened} <- opened do
-      order
-      |> Ecto.Changeset.change(
-        status: "opened",
-        opened_at: DateTime.truncate(DateTime.utc_now(), :second),
-        opened_by_id: officer.id
-      )
-      |> Repo.update!()
+      order =
+        order
+        |> Ecto.Changeset.change(
+          status: "opened",
+          opened_at: DateTime.truncate(DateTime.utc_now(), :second),
+          opened_by_id: officer.id
+        )
+        |> Repo.update!()
+
+      # A abertura vai para o registro público, sem nada que identifique a pessoa.
+      {:ok, _entry} =
+        Registro.append("identificacao", %{
+          aberta_em: order.opened_at,
+          juizo: order.court,
+          processo: if(order.secret_case, do: nil, else: order.case_number),
+          sigiloso: order.secret_case
+        })
 
       opened = Enum.reverse(opened)
 

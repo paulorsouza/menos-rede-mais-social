@@ -15,6 +15,7 @@ config :rede_social, RedeSocial.Repo,
 
 # Chave da impressão digital do CPF, só para testes.
 config :rede_social, :cpf_fingerprint_key, "chave-de-teste-nao-usar-em-producao"
+config :rede_social, :registro_signing_seed, "v1kBGtGfy8gvh9NL0xu0vayHCgOzUVShKFC8d+Xb5s4="
 
 # Nos testes o motor é simulado com Req.Test, e os uploads vão para tmp/. O
 # cofre do CPF usa um falso que imita as regras do motor, e a limpeza dos
@@ -24,6 +25,8 @@ config :rede_social,
   uploads_dir: "tmp/test_uploads",
   vault: RedeSocial.Vault.Fake,
   access_log_janitor: false,
+  registro_watcher: false,
+  graph_photographer: false,
   govbr_req_options: [plug: {Req.Test, RedeSocial.GovBr}]
 
 config :rede_social, :govbr,

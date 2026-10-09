@@ -48,6 +48,10 @@ defmodule RedeSocialWeb.Router do
     get "/accounts/:nickname", AccountController, :show
     get "/posts/:id", PostController, :show
     get "/moderation/rules", ModerationController, :rules
+    get "/registro", RegistroController, :index
+    get "/registro/entradas", RegistroController, :entries
+    get "/registro/prova/:index", RegistroController, :inclusion
+    get "/registro/consistencia", RegistroController, :consistency
 
     # Só na demonstração: pessoas de exemplo e gov.br simulado.
     scope "/" do
@@ -64,6 +68,7 @@ defmodule RedeSocialWeb.Router do
       pipe_through :authenticated
 
       get "/feed", FeedController, :index
+      get "/feed/conta", FeedController, :account
       get "/shorts", FeedController, :shorts
       post "/posts", PostController, :create
       post "/posts/:id/like", PostController, :like
