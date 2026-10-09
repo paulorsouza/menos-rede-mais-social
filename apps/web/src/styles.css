@@ -3338,3 +3338,8 @@ section[id] {
   gap: 12px;
   color: var(--muted);
 }
+
+/* Os dois arquivos do registro, antes das regras. */
+#registro .footer-links {
+  margin: 14px 0 22px;
+}

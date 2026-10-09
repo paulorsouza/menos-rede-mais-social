@@ -65,7 +65,11 @@ export function ModePicker({ glass = false }: { glass?: boolean }) {
 }
 
 /** Mostra, quando pedido, que a ordem veio do motor aberto e com quais parâmetros. */
-export function EngineChip({ engine }: { engine: EngineInfo }) {
+/**
+ * Quem calculou o feed. `account` é o endereço da conta deste feed (entrada,
+ * saída, recibo e provas), para conferir com o verificador aberto.
+ */
+export function EngineChip({ engine, account }: { engine: EngineInfo; account?: string }) {
   const offline = engine.status === 'offline'
 
   return (
@@ -86,7 +90,12 @@ export function EngineChip({ engine }: { engine: EngineInfo }) {
               <strong>v{engine.params_version}</strong>.
             </p>
             <code className="hash-inline">{engine.params_sha256?.slice(0, 16)}…</code>
-            <Link to="/transparencia" className="text-link">
+            {account && (
+              <a href={account} download className="text-link">
+                Baixar a conta deste feed
+              </a>
+            )}
+            <Link to="/transparencia#registro" className="text-link">
               Conferir na transparência
             </Link>
           </>

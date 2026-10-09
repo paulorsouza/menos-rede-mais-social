@@ -9,6 +9,7 @@ import type {
   Notice,
   OpenedOrder,
   Post,
+  Registro,
   Profile,
   QueueEntry,
   Rule,
@@ -128,4 +129,5 @@ export const api = {
 
   dashboard: () => request<Dashboard>('/creator/dashboard'),
   transparency: () => request<TransparencyReport>('/transparency'),
+  registro: () => request<Registro>('/registro'),
 }

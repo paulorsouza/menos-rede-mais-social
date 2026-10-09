@@ -30,7 +30,7 @@ export function TrendingPage() {
   return (
     <div className="page">
       <PageHead title="Em alta">
-        {feed && <EngineChip engine={feed.engine} />}
+        {feed && <EngineChip engine={feed.engine} account="/api/feed/conta?mode=public_ranking&kind=all" />}
         <InfoTip label="Como esta lista é feita">
           O que mais gente curtiu e salvou nas últimas horas. A lista é a mesma para todo mundo e não olha o que você
           curte nem quem você segue. A fórmula está em <code>params/feed.toml</code>.

@@ -41,7 +41,7 @@ export function HomePage() {
   return (
     <div className="page">
       <PageHead brand>
-        {feed && <EngineChip engine={feed.engine} />}
+        {feed && <EngineChip engine={feed.engine} account={`/api/feed/conta?mode=${mode}`} />}
         <ModePicker />
       </PageHead>
 

@@ -6,7 +6,7 @@ import { InfoTip } from '../components/Popover'
 import { ErrorState, Loading } from '../components/States'
 import { formatCompact, formatDate, formatMoney } from '../format'
 import { REPO_URL, RULES_URL } from '../links'
-import type { ParamsFile, TransparencyReport } from '../types'
+import type { ParamsFile, Registro, TransparencyReport } from '../types'
 
 export function TransparencyPage() {
   const [report, setReport] = useState<TransparencyReport | null>(null)
@@ -73,6 +73,7 @@ export function TransparencyPage() {
         </div>
       </section>
 
+      <RegistroSection />
       <Rules report={report} />
       <Identifications report={report} />
 
@@ -101,6 +102,76 @@ export function TransparencyPage() {
         </a>
       </nav>
     </div>
+  )
+}
+
+const KIND_LABEL: Record<string, string> = {
+  motor: 'Versão do motor',
+  'raiz-dados': 'Retrato do grafo',
+  identificacao: 'Ordem judicial aberta',
+}
+
+/** Uma linha curta para cada entrada, a partir do texto exato publicado. */
+function describe(kind: string, data: string) {
+  try {
+    const payload = JSON.parse(data.slice(data.indexOf('\n') + 1))
+    if (kind === 'motor') return `v${payload.versao} · feed ${String(payload.feed_sha256).slice(0, 8)}…`
+    if (kind === 'raiz-dados') return `${payload.ligacoes} ligações · raiz ${String(payload.raiz).slice(0, 8)}…`
+    if (kind === 'identificacao') return payload.sigiloso ? 'Processo sigiloso' : payload.juizo
+  } catch {
+    // Entrada de um tipo novo: mostra só o tipo.
+  }
+  return kind
+}
+
+/**
+ * O registro público: uma árvore que só aceita acréscimos, com o cabeçalho
+ * assinado. Os dois arquivos daqui são o que o verificador aberto precisa.
+ */
+function RegistroSection() {
+  const [registro, setRegistro] = useState<Registro | null>(null)
+
+  useEffect(() => {
+    api.registro().then(setRegistro).catch(() => setRegistro(null))
+  }, [])
+
+  if (!registro) return null
+
+  return (
+    <section id="registro">
+      <div className="params-head">
+        <h2 className="section-label">Registro público</h2>
+        <InfoTip label="Como conferir o registro">
+          Cada versão do motor, cada retrato do grafo e cada ordem judicial aberta vira uma entrada que não pode mais ser
+          mudada nem apagada. Baixe o cabeçalho e as entradas e rode{' '}
+          <code>verificador registro registro.json entradas.json</code>. Guarde o cabeçalho de hoje: amanhã, a prova de
+          consistência mostra que nada dele foi trocado.
+        </InfoTip>
+      </div>
+      <p className="rules-foot">
+        {registro.head.size} {registro.head.size === 1 ? 'entrada' : 'entradas'} · raiz{' '}
+        <code className="hash-inline">{registro.head.root.slice(0, 16)}…</code>
+      </p>
+      <ul className="ad-list">
+        {registro.entries.slice(0, 6).map((entry) => (
+          <li key={entry.index}>
+            <span className="ad-list-name">
+              {KIND_LABEL[entry.kind] ?? entry.kind}
+              <small>{describe(entry.kind, entry.data)}</small>
+            </span>
+            <strong>#{entry.index}</strong>
+          </li>
+        ))}
+      </ul>
+      <nav className="footer-links">
+        <a href="/api/registro" download="registro.json">
+          Baixar o cabeçalho
+        </a>
+        <a href="/api/registro/entradas" download="entradas.json">
+          Baixar as entradas
+        </a>
+      </nav>
+    </section>
   )
 }
 

@@ -224,3 +224,9 @@ export interface OpenedOrder {
   cpf: string | null
   accesses: { at: string; ip: string }[]
 }
+
+/** O registro público: cabeçalho assinado e as últimas entradas. */
+export interface Registro {
+  head: { size: number; root: string; timestamp: number; signature: string; public_key: string }
+  entries: { index: number; kind: string; data: string; leaf_hash: string; at: string }[]
+}
