@@ -73,5 +73,5 @@ Funciona de verdade nesta demo:
 
 - O gov.br (o Login Único já está integrado, mas sem credencial a demo usa o simulado), os CPFs, as pessoas, os anunciantes e os valores.
 - As fatias dos guardiões, que na demo ficam em `services/cofre/demo/` e no piloto ficam nos cofres de hardware de cada instituição.
-- A atestação de hardware e o build reproduzível com Nix, que entram no piloto.
+- A atestação de hardware, que só faz sentido com a rede rodando em servidores de verdade.
 - A transcodificação dos vídeos: aqui eles são servidos do jeito que foram enviados.

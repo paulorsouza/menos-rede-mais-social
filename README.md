@@ -1,6 +1,6 @@
 # -rede+social
 
-Uma rede social pública, de código aberto e sem fins lucrativos, pensada para o Brasil. O governo paga a infraestrutura, mas a rede é de quem usa. O porquê está no [manifesto](MANIFESTO.md), e o como está no [plano inicial](docs/plano-inicial.md). As regras que nenhuma decisão pode quebrar estão nas [regras pétreas](specs/regras-petreas.md).
+Um exemplo de rede social pública, de código aberto e sem fins lucrativos, feito com as ferramentas e as leis do Brasil. Não pretende ser a rede social do país: a ideia é servir de ponto de partida para quem quiser fazer uma de verdade. No desenho, quem paga a estrutura é um investidor que não busca lucro, de preferência do setor público, e a rede é de quem usa. O porquê está no [manifesto](MANIFESTO.md), e o como está no [plano inicial](docs/plano-inicial.md). As regras que nenhuma decisão pode quebrar estão nas [regras pétreas](specs/regras-petreas.md).
 
 Este repositório já tem uma demonstração completa: feed com cinco modos e o "por que estou vendo isto", textos curtos, fotos, vídeos e shorts, anúncios nacionais e regionais com rateio entre criadores, painel do criador e página de transparência. O login gov.br é simulado e os dados são fictícios.
 

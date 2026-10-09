@@ -2,13 +2,15 @@
 
 Versão de 9 de outubro de 2026. Daqui em diante, mudanças nas regras descritas aqui passam por [RFC](rfcs/README.md).
 
-A -rede+social é uma rede social pública, de código aberto e sem fins lucrativos, com infraestrutura paga pelo governo. Este plano define produto, dinheiro, algoritmos, arquitetura, segurança, governança e as fases até um piloto com o governo. O texto para o público está no [manifesto](../MANIFESTO.md).
+A -rede+social é um exemplo de rede social pública, de código aberto e sem fins lucrativos. Ela não pretende ser a rede social do país. O objetivo é mostrar, com código que funciona, como uma rede assim poderia ser, e deixar tudo aberto para que alguém com estrutura e orçamento faça uma de verdade, com este código ou só com as ideias.
+
+Por isso o plano descreve duas coisas: o que o exemplo já mostra funcionando e o que uma rede de verdade ainda precisaria para receber gente. Ele cobre produto, dinheiro, algoritmos, arquitetura, segurança e governança. No desenho, quem paga a estrutura é um investidor que não busca lucro, de preferência do setor público (o porquê está no princípio 1). O texto para o público está no [manifesto](../MANIFESTO.md).
 
 ## Onde estamos
 
 Existe uma demonstração que roda inteira no computador com um comando e mostra as ideias centrais funcionando: login pelo gov.br (simulado na demo, pronto para homologação), publicação, feed por grafo com o "por que estou vendo isto", moderação com recurso, o cofre do CPF com os guardiões, anúncios com pagamento por faixas e a página de transparência. Tudo com pessoas, anunciantes e valores fictícios. Nada está em produção e nenhuma pessoa real usou a rede ainda.
 
-A demonstração foi construída na frente das fases, tocando partes da 1 à 4, porque era preciso mostrar a proposta funcionando. Isso não pula nenhum portão. O que falta em cada fase é justamente o que transforma a demonstração em algo que pode receber gente de verdade.
+A demonstração foi construída na frente das fases, tocando partes da 1 à 4, porque era preciso mostrar a proposta funcionando. Isso não pula nenhum portão. O que falta em cada fase é justamente o que transforma a demonstração em algo que pode receber gente de verdade. As fases 1 a 4 podem avançar aqui, no repositório. A 5 depende de alguém decidir levar a ideia adiante.
 
 | Fase | Situação |
 | --- | --- |
@@ -17,7 +19,7 @@ A demonstração foi construída na frente das fases, tocando partes da 1 à 4, 
 | 2 · Algoritmos e transparência | Feed conferível de ponta a ponta: registro público, recibo assinado, retratos do grafo, verificador aberto e build reproduzível. Faltam escala, gRPC e alguém de fora fazer o caminho todo |
 | 3 · Vídeo | Upload, player e shorts prontos. Faltam transcodificação, armazenamento de objetos, CDN e lives |
 | 4 · Anúncios e pagamentos | Regras do dinheiro prontas no motor. Faltam venda de campanhas, cobrança, PIX e auditoria |
-| 5 · Piloto com o governo | Não começou |
+| 5 · Piloto | Depende de alguém levar a ideia adiante |
 
 O detalhe de cada fase está na [seção 11](#11-roadmap-e-situação-atual).
 
@@ -25,7 +27,7 @@ O detalhe de cada fase está na [seção 11](#11-roadmap-e-situação-atual).
 
 Toda decisão de produto, código ou negócio precisa respeitar estas seis regras. Se uma proposta quebra alguma, ela não entra.
 
-1. **Pública e sem dono.** O governo paga a infraestrutura, mas não controla conteúdo nem algoritmo.
+1. **Pública e sem dono.** Quem paga a infraestrutura é um investidor que não busca lucro, de preferência do setor público, e talvez só ele. Quem investe esperando retorno acaba cobrando esse retorno em atenção e dados, que é o que a rede quer evitar. E quem paga não controla conteúdo nem algoritmo.
 2. **Sem fins lucrativos.** A receita paga criadores e infraestrutura. Não existe lucro a distribuir.
 3. **Dados não são produto.** Nenhum dado pessoal é vendido ou compartilhado com anunciantes. A segmentação de anúncios usa só a região aproximada e o contexto do vídeo.
 4. **Transparência verificável.** O código é aberto, e qualquer pessoa consegue provar que o código em produção é o publicado.
@@ -69,7 +71,7 @@ Como a identidade fica protegida:
 
 - **Sem CPF guardado em texto.** A rede guarda só uma impressão digital do CPF, gerada com uma chave secreta. Ela serve para impedir contas duplicadas. Além dela, existe só uma cópia cifrada do CPF, usada exclusivamente para ordens judiciais (veja abaixo).
 - **Só o necessário.** Do gov.br vem apenas o identificador, a faixa de idade e o nível da conta. Como o perfil usa apelido, o nome real não é lido nem guardado.
-- **O governo não vê o que você posta.** O gov.br só fica sabendo que houve um login. Pedidos de dados por autoridades exigem ordem judicial, e o total de pedidos sai no relatório de transparência.
+- **Nem o gov.br nem quem paga a rede veem o que você posta.** O gov.br só fica sabendo que houve um login. Pedidos de dados por autoridades exigem ordem judicial, e o total de pedidos sai no relatório de transparência.
 - **Menores de idade.** Perfil privado por padrão e sem anúncios, conforme a legislação de proteção de crianças e adolescentes on-line.
 
 Decidido: o perfil público usa apelido, com um selo que mostra que a conta é de uma pessoa verificada. O nome real do gov.br não aparece para ninguém na rede.
@@ -103,7 +105,7 @@ O usuário escolhe entre quatro modos de feed e troca quando quiser. "Em alta" f
 
 ### Não existem categorias
 
-A rede não sabe do que um post fala, e não tenta saber. Não existe tema, tag, categoria nem classificador, nem automático, nem escolhido por quem publica. Qualquer lista de categorias é uma decisão de alguém sobre o que é "política", "humor" ou "notícia", e uma rede paga com dinheiro público não pode tomar essa decisão por ninguém.
+A rede não sabe do que um post fala, e não tenta saber. Não existe tema, tag, categoria nem classificador, nem automático, nem escolhido por quem publica. Qualquer lista de categorias é uma decisão de alguém sobre o que é "política", "humor" ou "notícia", e uma rede que se propõe a ser de todo mundo não pode tomar essa decisão por ninguém.
 
 O que existe é um grafo. Uma pessoa se liga a um post quando curte ou assiste, e a outra pessoa quando segue. O feed sai só disso:
 
@@ -140,7 +142,7 @@ Regras que valem para todos os modos:
 
 ## 5. Moderação
 
-Numa rede paga pelo Estado, o medo natural é a moderação virar censura. Por isso toda remoção precisa ter motivo escrito, poder ser contestada e aparecer nos relatórios públicos.
+Numa rede paga com dinheiro público, o medo natural é a moderação virar censura a favor de quem está no poder. Por isso toda remoção precisa ter motivo escrito, poder ser contestada e aparecer nos relatórios públicos.
 
 - **Regras curtas e públicas.** A rede remove o que a lei manda remover e pouco mais. Cada regra tem número, texto simples e exemplos.
 - **Três camadas.** Filtro automático só para conteúdo claramente ilegal, como material de abuso infantil. Denúncias de usuários entram numa fila. Revisão humana decide o resto.
@@ -228,7 +230,7 @@ O backend em Elixir atende o app e a web e orquestra tudo. O que precisa ser aud
 - **PostgreSQL** com as tabelas grandes (posts e views) particionadas por mês e réplicas de leitura para o feed.
 - **Filas com Oban**, que roda sobre o próprio PostgreSQL e evita mais um sistema para operar.
 - **Vídeo** em várias resoluções, entregue por HLS, com codecs eficientes para economizar banda.
-- **Hospedagem** em nuvem de governo ou em data centers próprios: decisão em aberto.
+- **Hospedagem:** fica com quem for operar a rede, em nuvem pública, comercial ou em data center próprio.
 
 Na demonstração de hoje, o backend conversa com o motor em JSON, com os mesmos campos dos contratos em `proto/`. Os arquivos ficam em disco local, e ainda não existem Oban, tabelas particionadas, réplicas nem CDN. Tudo sobe com Docker Compose: banco, motor, backend e web.
 
@@ -273,15 +275,16 @@ Limites assumidos:
 
 ## 10. Governança
 
-Quem decide os rumos da rede é um conselho com representantes de vários setores, e não o governo que paga a conta. Os mandatos desse conselho não coincidem com o do presidente, para que nenhum governo consiga tomar conta da rede.
+Quem decide os rumos da rede é um conselho com representantes de vários setores, e não quem paga a conta. Se o investidor for público, os mandatos do conselho não coincidem com os de quem governa, para que nenhuma gestão consiga tomar conta da rede.
 
+- **Investidor.** De preferência do setor público, e talvez só ele: um banco público de desenvolvimento, uma universidade ou outro órgão público. Investimento privado que espera retorno fica de fora, pelo motivo do princípio 1. O investidor entra sabendo que não recebe lucro e não manda no conteúdo nem no algoritmo.
 - **Entidade gestora.** Forma jurídica em aberto: fundação pública, organização social com contrato de gestão ou associação civil. O que importa é autonomia, orçamento plurianual e prestação de contas pública.
-- **Conselho multissetorial.** Governo, sociedade civil, academia, criadores e setor privado, inspirado no modelo do CGI.br. Nenhum setor tem maioria sozinho.
+- **Conselho multissetorial.** Setor público, sociedade civil, academia, criadores e setor privado, inspirado no modelo do CGI.br. Nenhum setor tem maioria sozinho.
 - **Como uma regra muda.** Proposta pública no repositório, 30 dias de comentários (proposta), decisão do conselho e registro no log antes de entrar no ar. Correções urgentes de segurança entram antes e são explicadas depois.
 - **Licença.** AGPL-3.0, decidida em outubro de 2026. Quem rodar uma versão modificada como serviço é obrigado a publicar o código.
 - **Comunidade.** Repositório público, contribuições abertas, código de conduta e reuniões técnicas com ata pública.
 - **Contas abertas.** Custos mensais de infraestrutura, receita de anúncios e repasses publicados todo mês.
-- **Continuidade.** Exportação completa dos dados de cada usuário desde o início. Numa fase futura, interoperabilidade com protocolos abertos como o ActivityPub, para a rede sobreviver mesmo se um governo quiser desligá-la.
+- **Continuidade.** Exportação completa dos dados de cada usuário desde o início. Numa fase futura, interoperabilidade com protocolos abertos como o ActivityPub, para a rede sobreviver mesmo se quem paga quiser desligá-la.
 
 ## 11. Roadmap e situação atual
 
@@ -328,7 +331,7 @@ Feito:
 
 Falta:
 
-- Credenciais de homologação do gov.br e, depois, as de produção, que só saem para serviço em domínio de governo aprovado pela Secretaria de Governo Digital.
+- Credenciais de homologação do gov.br e, depois, as de produção, que só saem para serviço em domínio de governo aprovado pela Secretaria de Governo Digital. É mais um motivo para quem operar a rede ser do setor público.
 - Uma fonte confiável de idade. O Login Único não informa a data de nascimento, então hoje toda conta que entra por ele nasce com as proteções de menor (seção 13).
 - O grupo de teste real.
 
@@ -400,16 +403,17 @@ Falta:
 - Anúncio em lives.
 - As decisões de faixas, proporções e destino da diferença (seção 13).
 
-### Fase 5 · Piloto com o governo
+### Fase 5 · Piloto
 
 Portão: piloto público rodando, com orçamento definido e primeiro relatório de transparência.
 
-Feito: nada ainda, e é o esperado.
+Esta fase não depende só do repositório. Ela começa se uma instituição, de preferência pública, decidir levar a ideia adiante, com este código ou com outro. Até lá, o papel do projeto é deixar o exemplo o mais completo e fácil de entender possível.
 
 Falta:
 
+- Um investidor que aceite as regras pétreas e uma entidade para operar a rede.
 - Hospedagem e atestação em produção.
-- Entidade gestora, conselho e os cinco guardiões.
+- Conselho e os cinco guardiões.
 - Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
 - Encarregado de dados e relatório de impacto à proteção de dados.
 - Auditoria externa, recompensa por falhas e lista pública de dependências.
@@ -417,12 +421,12 @@ Falta:
 
 ## 12. Riscos
 
-O risco mais sério é a rede passar a ser vista como ferramenta do governo do momento, porque aí ela perde a razão de existir. A tabela está em ordem de gravidade.
+O risco mais sério é a rede passar a ser vista como ferramenta de quem paga, ou do governo do momento se o investidor for público, porque aí ela perde a razão de existir. A tabela está em ordem de gravidade.
 
 | Risco | O que acontece | Mitigação |
 | --- | --- | --- |
 | Captura política | Perda total de confiança | Conselho com mandatos descasados, algoritmo verificável, moderação contestável e relatórios públicos |
-| Desligamento por troca de governo | A rede some com o conteúdo de todos | Base legal, orçamento plurianual, exportação de dados e código que outros podem operar |
+| Desligamento por quem paga | A rede some com o conteúdo de todos | Base legal, orçamento plurianual, exportação de dados e código que outros podem operar |
 | Medo de vigilância pelo gov.br | Pessoas evitam se cadastrar | CPF aberto só por ordem judicial e com 3 de 5 guardiões, dados mínimos, auditoria externa |
 | Custo de vídeo | Orçamento estoura | Limites de upload por conta, codecs eficientes, cache nos pontos de troca de tráfego (IX.br), parte dos anúncios para o fundo |
 | Pouca adesão | Rede vazia, criadores não migram | Começar por quem ganha mais aqui: criadores pequenos e comércio local; importação de conteúdo de outras redes |
@@ -435,6 +439,8 @@ O risco mais sério é a rede passar a ser vista como ferramenta do governo do m
 
 Já decidido:
 
+- [x] O projeto é um exemplo aberto, para inspirar quem quiser fazer uma rede de verdade, e não a rede social do país
+- [x] Quem paga: um investidor que não busca lucro, de preferência do setor público
 - [x] Perfil público: apelido com selo de verificado
 - [x] Texto curto: até 140 caracteres e sem respostas
 - [x] Sem tema, tag ou categoria: o feed sai só do grafo de quem assiste, curte e segue (seção 4)
@@ -464,5 +470,4 @@ Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem espe
 - [ ] Anúncio regional por município ou por estado
 - [ ] Apostas e publicidade de governo como anunciantes
 - [ ] Forma jurídica da entidade gestora
-- [ ] Hospedagem: nuvem de governo (Serpro, Dataprev) ou data centers próprios
 - [ ] Quem são os 5 guardiões da cópia cifrada do CPF

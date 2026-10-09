@@ -1,7 +1,7 @@
 {
   "name": "-rede+social",
   "short_name": "rede social",
-  "description": "Rede social pública, de código aberto, dos brasileiros e para os brasileiros.",
+  "description": "Exemplo aberto de uma rede social pública, sem dono e sem fins lucrativos.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/",
