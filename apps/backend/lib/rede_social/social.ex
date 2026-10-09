@@ -117,7 +117,7 @@ defmodule RedeSocial.Social do
     |> order_by([p], desc: p.inserted_at, desc: p.id)
     |> limit(^limit)
     |> preload(:author)
-    |> Repo.all()
+    |> Repo.read().all()
   end
 
   def get_posts(ids) do
@@ -289,19 +289,23 @@ defmodule RedeSocial.Social do
   end
 
   defp posts_touched_by(id) do
-    liked = Repo.all(from l in Like, where: l.account_id == ^id, select: l.post_id)
+    liked = Repo.read().all(from l in Like, where: l.account_id == ^id, select: l.post_id)
 
     watched =
-      Repo.all(from v in View, where: v.viewer_id == ^id, distinct: true, select: v.post_id)
+      Repo.read().all(
+        from v in View, where: v.viewer_id == ^id, distinct: true, select: v.post_id
+      )
 
     Enum.uniq(liked ++ watched)
   end
 
   defp people_on(post_ids) do
-    likers = Repo.all(from l in Like, where: l.post_id in ^post_ids, select: l.account_id)
+    likers = Repo.read().all(from l in Like, where: l.post_id in ^post_ids, select: l.account_id)
 
     watchers =
-      Repo.all(from v in View, where: v.post_id in ^post_ids, distinct: true, select: v.viewer_id)
+      Repo.read().all(
+        from v in View, where: v.post_id in ^post_ids, distinct: true, select: v.viewer_id
+      )
 
     likers ++ watchers
   end
@@ -317,7 +321,7 @@ defmodule RedeSocial.Social do
       limit: @edge_limit,
       select: %{user_id: l.account_id, post_id: l.post_id, at: l.inserted_at}
     )
-    |> Repo.all()
+    |> Repo.read().all()
     |> Enum.map(&Map.merge(&1, %{kind: "like", at: unix(&1.at)}))
   end
 
@@ -340,7 +344,7 @@ defmodule RedeSocial.Social do
         watched_ms: max(v.watched_ms)
       }
     )
-    |> Repo.all()
+    |> Repo.read().all()
     |> Enum.map(&Map.merge(&1, %{kind: "watch", at: unix(&1.at)}))
   end
 

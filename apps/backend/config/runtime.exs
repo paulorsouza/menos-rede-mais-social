@@ -117,6 +117,15 @@ if config_env() == :prod do
   # Check `Plug.SSL` for all available options in `force_ssl`.
 end
 
+# Réplica de leitura do PostgreSQL para as consultas pesadas do feed.
+if replica_url = System.get_env("DATABASE_REPLICA_URL") do
+  config :rede_social, RedeSocial.Repo.Replica,
+    url: replica_url,
+    pool_size: String.to_integer(System.get_env("REPLICA_POOL_SIZE", "10"))
+
+  config :rede_social, :read_replica, true
+end
+
 if config_env() == :prod do
   # Chave da impressão digital do CPF. No piloto ela sai de um cofre de
   # hardware (HSM); por enquanto vem de uma variável de ambiente.

@@ -110,7 +110,7 @@ defmodule RedeSocial.GraphCommitments do
     alias_for = fn id -> pseudonym(salt, id) end
 
     likes =
-      Repo.all(
+      Repo.read().all(
         from l in Like,
           join: p in Post,
           on: p.id == l.post_id,
@@ -119,7 +119,7 @@ defmodule RedeSocial.GraphCommitments do
       )
 
     watches =
-      Repo.all(
+      Repo.read().all(
         from v in View,
           join: p in Post,
           on: p.id == v.post_id,
@@ -129,7 +129,8 @@ defmodule RedeSocial.GraphCommitments do
             {v.viewer_id, v.post_id, max(v.watched_ms), type(max(v.inserted_at), :utc_datetime)}
       )
 
-    follows = Repo.all(from f in Follow, select: {f.follower_id, f.followed_id, f.inserted_at})
+    follows =
+      Repo.read().all(from f in Follow, select: {f.follower_id, f.followed_id, f.inserted_at})
 
     Enum.map(likes, fn {user, post, at} -> like_text(alias_for.(user), post, unix(at)) end) ++
       Enum.map(watches, fn {user, post, ms, at} ->

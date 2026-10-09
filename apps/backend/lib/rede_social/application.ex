@@ -18,22 +18,28 @@ defmodule RedeSocial.Application do
       RedeSocialWeb.Endpoint
     ]
 
-    # Apaga os registros de acesso que passaram dos seis meses da lei.
+    # Réplica de leitura, quando configurada (config/runtime.exs).
     children =
-      if Application.get_env(:rede_social, :access_log_janitor, true),
-        do: children ++ [RedeSocial.AccessLogs.Janitor],
+      if Application.get_env(:rede_social, :read_replica, false),
+        do: List.insert_at(children, 2, RedeSocial.Repo.Replica),
         else: children
 
-    # Tira o retrato do grafo e publica a raiz no registro.
-    children =
-      if Application.get_env(:rede_social, :graph_photographer, true),
-        do: children ++ [RedeSocial.GraphCommitments.Photographer],
-        else: children
+    # Trabalhos de fundo: apagar acessos vencidos, retratar o grafo e anotar
+    # cada versão do motor no registro. Só rodam junto com o servidor de
+    # verdade, nunca em tarefas avulsas como seeds e migrações, para não
+    # retratar um grafo pela metade.
+    background =
+      for {flag, worker} <- [
+            access_log_janitor: RedeSocial.AccessLogs.Janitor,
+            graph_photographer: RedeSocial.GraphCommitments.Photographer,
+            registro_watcher: RedeSocial.Registro.Watcher
+          ],
+          Application.get_env(:rede_social, flag, true),
+          do: worker
 
-    # Anota no registro público cada versão nova do motor e dos parâmetros.
     children =
-      if Application.get_env(:rede_social, :registro_watcher, true),
-        do: children ++ [RedeSocial.Registro.Watcher],
+      if Phoenix.Endpoint.server?(:rede_social, RedeSocialWeb.Endpoint),
+        do: children ++ background,
         else: children
 
     # See https://elixir.hexdocs.pm/Supervisor.html
