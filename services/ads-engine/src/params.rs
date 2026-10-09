@@ -1,6 +1,6 @@
 use std::fmt;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Parâmetros públicos de anúncios, lidos de `params/ads.toml`.
 #[derive(Debug, Clone, Deserialize)]
@@ -11,7 +11,7 @@ pub struct Params {
     pub payout_bands: Vec<PayoutBand>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PayoutBand {
     /// Limite de cima da faixa, em views no mês. `None` só na última faixa.

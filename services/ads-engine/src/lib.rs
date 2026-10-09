@@ -8,6 +8,8 @@ mod params;
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 pub use params::{Params, ParamsError, PayoutBand};
 
 pub type UserId = u64;
@@ -49,7 +51,7 @@ pub fn monthly_payout_cents(views: u64, cents_per_thousand: u64, bands: &[Payout
 }
 
 /// Um short assistido antes de um anúncio.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShortView {
     pub creator_id: UserId,
     pub watched_ms: u64,

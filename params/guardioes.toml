@@ -1,0 +1,40 @@
+# Guardiões da cópia cifrada do CPF (seção 3 do plano).
+#
+# Público como os outros parâmetros: a chave do grupo cifra o CPF no cadastro,
+# e a chave de conferência de cada guardião permite provar que a parte que ele
+# entregou numa ordem judicial é honesta. Abrir um CPF exige `threshold`
+# guardiões.
+#
+# ESTES SÃO OS GUARDIÕES DA DEMONSTRAÇÃO. As fatias secretas deles estão em
+# services/cofre/demo/ para a demo funcionar sozinha. No piloto, a cerimônia
+# acontece com as instituições de verdade, e as fatias nunca saem dos cofres
+# de hardware delas.
+
+version = 1
+threshold = 3
+public_key = "8vay2a6mf383eHjzSkpXL5hruiSZZTOZ10nmUm7NR1E="
+
+[[guardians]]
+index = 1
+name = "Entidade gestora (demonstração)"
+verification_key = "Jvgp8QJF3mX9MrTVQLHXrX60R23bDHf7Bk9c9WEfozw="
+
+[[guardians]]
+index = 2
+name = "Universidade pública (demonstração)"
+verification_key = "zuy+21b5IYKFP98wisYYxlGGLxDYUa/Ab3jVB5LREkU="
+
+[[guardians]]
+index = 3
+name = "Organização da sociedade civil (demonstração)"
+verification_key = "EjTU+opRaXAIgJ+ShdcfmHnNt4ZXS4g78HAWQO9qHGY="
+
+[[guardians]]
+index = 4
+name = "Órgão de controle (demonstração)"
+verification_key = "6hiYQ78GN9SrlTm/5grC+8LAfqAxX/9NAYjeqNpR+W8="
+
+[[guardians]]
+index = 5
+name = "Conselho multissetorial (demonstração)"
+verification_key = "QF4kSHjCThK/jBhbKFpTyTwTLazD+PSfSigGtRpaMRw="
