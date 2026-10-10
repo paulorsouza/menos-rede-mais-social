@@ -41,6 +41,9 @@ pub struct ShortsImpression {
     pub id: u64,
     pub revenue_cents: u64,
     pub at: i64,
+    /// Conta verificada pelo gov.br. Com conta básica, a parte dos criadores
+    /// fica com o fundo, como nas views dos vídeos.
+    pub viewer_verified: bool,
     /// Todos os shorts do bloco, de todos os criadores, porque o rateio
     /// depende do tempo assistido de cada um.
     pub views: Vec<ShortsBlockView>,
@@ -177,6 +180,9 @@ pub fn shorts_creator_pool(revenue_cents: u64, params: &Params) -> u64 {
 /// pelo tempo assistido. Os criadores do bloco viram números (1, 2, ...) na
 /// ordem do id, como no rateio feito na hora do anúncio.
 pub fn shorts_share(impression: &ShortsImpression, creator: &str, params: &Params) -> u64 {
+    if !impression.viewer_verified {
+        return 0;
+    }
     let mut creators: Vec<&str> = impression
         .views
         .iter()
@@ -279,12 +285,17 @@ fn leaves(month: &CreatorMonth, result: &CreatorResult) -> Vec<String> {
             .collect::<Vec<_>>()
             .join(",");
         lines.push(format!(
-            "anuncio-shorts|{}|{}|{}|{}|{}|{}|{}",
+            "anuncio-shorts|{}|{}|{}|{}|{}|{}|{}|{}",
             month.month,
             month.creator,
             impression.id,
             impression.revenue_cents,
             impression.at,
+            if impression.viewer_verified {
+                "verificada"
+            } else {
+                "conta-basica"
+            },
             block,
             cents
         ));
@@ -422,6 +433,7 @@ mod tests {
             id: 7,
             revenue_cents: 1000,
             at: AFTERNOON,
+            viewer_verified: true,
             views: vec![
                 ShortsBlockView {
                     creator: "criadora".into(),
@@ -436,12 +448,22 @@ mod tests {
             ],
         };
         let mut input = month(vec![]);
-        input.shorts = vec![impression];
+        input.shorts = vec![impression.clone()];
         let result = close(&input, &params());
 
         // 55% de R$ 10,00 para os criadores, três quartos para quem teve três
         // quartos do tempo. O centavo que sobra vai para o menor id.
         assert_eq!(result.shorts_cents, 413);
+
+        // Com conta básica, a parte dos criadores fica com o fundo, e a linha
+        // do extrato diz por quê.
+        input.shorts = vec![ShortsImpression {
+            viewer_verified: false,
+            ..impression
+        }];
+        let basic = close(&input, &params());
+        assert_eq!(basic.shorts_cents, 0);
+        assert!(basic.leaves[0].contains("|conta-basica|"));
     }
 
     #[test]

@@ -70,7 +70,7 @@ defmodule RedeSocial.MinorsTest do
 
       ads = fn viewer ->
         {:ok, feed} = Ads.shorts_feed(viewer, "public_ranking")
-        Enum.count(feed.items, &match?({:ad, _campaign, _ids}, &1))
+        Enum.count(feed.items, &match?({:ad, _campaign, _ids, _slot}, &1))
       end
 
       assert ads.(account_fixture()) == 1

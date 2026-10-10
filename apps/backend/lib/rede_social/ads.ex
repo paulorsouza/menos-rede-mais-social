@@ -11,9 +11,10 @@ defmodule RedeSocial.Ads do
 
   import Ecto.Query
 
+  alias Ecto.Multi
   alias RedeSocial.{Accounts, Engine, Feed, Payments, Repo, Social}
   alias RedeSocial.Accounts.{Account, CNPJ}
-  alias RedeSocial.Ads.{AdView, Advertiser, Campaign, Impression, Rules}
+  alias RedeSocial.Ads.{AdSlot, AdView, Advertiser, Campaign, Impression, Rules}
   alias RedeSocial.Payments.Pix
   alias RedeSocial.Social.{Post, View}
 
@@ -23,9 +24,15 @@ defmodule RedeSocial.Ads do
 
   ## Shorts com anúncio
 
+  # Por quanto tempo um anúncio mostrado ainda pode ser contado.
+  @slot_ttl_seconds 3 * 3600
+  # Folga entre o relógio do app e o do servidor no tempo assistido.
+  @watch_slack_ms 5_000
+
   @doc """
   Feed de shorts com um anúncio depois de cada bloco completo de shorts. O
-  anúncio leva junto os ids dos shorts do bloco, para o rateio.
+  anúncio leva junto os ids dos shorts do bloco, para o rateio, e o id da
+  exibição: só conta anúncio que a rede mostrou, com os shorts que ela mostrou.
   """
   def shorts_feed(%Account{} = viewer, mode, now \\ DateTime.utc_now()) do
     {:ok, feed} = Feed.build(viewer, mode, [:short], now)
@@ -40,7 +47,9 @@ defmodule RedeSocial.Ads do
 
         case {length(block) == every, remaining} do
           {true, [campaign | rest]} ->
-            {shorts ++ [{:ad, campaign, Enum.map(block, & &1.post.id)}], rest}
+            ids = Enum.map(block, & &1.post.id)
+            slot = serve(viewer, campaign, :shorts, ids, now)
+            {shorts ++ [{:ad, campaign, ids, slot.id}], rest}
 
           _ ->
             {shorts, remaining}
@@ -48,6 +57,80 @@ defmodule RedeSocial.Ads do
       end)
 
     {:ok, Map.merge(feed, %{items: items, ad_every: every})}
+  end
+
+  @doc """
+  O anúncio dos vídeos de um feed: a campanha que o motor escolheu e a
+  exibição, que vale para os pontos de anúncio desses vídeos.
+  """
+  def video_ad(%Account{} = viewer, post_ids, now \\ DateTime.utc_now()) do
+    with false <- Accounts.minor?(viewer),
+         [campaign] <- pick_campaigns(viewer, 1, now) do
+      {campaign, serve(viewer, campaign, :video, post_ids, now)}
+    else
+      _ -> nil
+    end
+  end
+
+  defp serve(viewer, campaign, kind, post_ids, now) do
+    Repo.insert!(%AdSlot{
+      viewer_id: viewer.id,
+      campaign_id: campaign.id,
+      kind: kind,
+      post_ids: post_ids,
+      served_at: DateTime.truncate(now, :second)
+    })
+  end
+
+  # A exibição desta pessoa, ainda no prazo.
+  defp open_slot(%Account{id: viewer_id}, slot_id, kind, now) do
+    oldest = DateTime.add(now, -@slot_ttl_seconds, :second)
+
+    case to_integer(slot_id) && Repo.get(AdSlot, to_integer(slot_id)) do
+      %AdSlot{viewer_id: ^viewer_id, kind: ^kind} = slot ->
+        if DateTime.compare(slot.served_at, oldest) != :lt, do: slot
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Apaga as exibições que já passaram do prazo. As impressões e views que
+  vieram delas ficam, sem o vínculo.
+  """
+  def purge_slots(now \\ DateTime.utc_now()) do
+    oldest = DateTime.add(now, -2 * @slot_ttl_seconds, :second)
+    {count, _} = Repo.delete_all(from s in AdSlot, where: s.served_at < ^oldest)
+    count
+  end
+
+  @doc """
+  A campanha ainda pode entregar: está no ar, hoje está dentro das datas
+  compradas e o total entregue não passou do que foi pago.
+  """
+  def deliverable(campaign_id, now \\ DateTime.utc_now()) do
+    {today, _start, _seconds} = brasilia_day(now)
+
+    case Repo.get(Campaign, campaign_id) do
+      %Campaign{status: :active} = campaign ->
+        within_dates =
+          Date.compare(campaign.starts_on, today) != :gt and
+            Date.compare(campaign.ends_on, today) != :lt
+
+        if within_dates and delivered_total(campaign) < bought(campaign), do: campaign
+
+      _ ->
+        nil
+    end
+  end
+
+  defp bought(%Campaign{} = campaign),
+    do: daily_budget(campaign) * (Date.diff(campaign.ends_on, campaign.starts_on) + 1)
+
+  defp delivered_total(%Campaign{id: id}) do
+    Repo.aggregate(from(i in Impression, where: i.campaign_id == ^id), :count) +
+      Repo.aggregate(from(v in AdView, where: v.campaign_id == ^id), :count)
   end
 
   defp shorts_ad_every do
@@ -166,59 +249,98 @@ defmodule RedeSocial.Ads do
 
   @doc """
   Registra que o anúncio dos shorts foi visto e divide a parte dos criadores
-  entre os shorts anteriores, pelo tempo assistido. Quem desligou anúncios,
-  ou não pode receber, fica fora do rateio; a parte dele fica com o fundo.
+  entre os shorts do bloco, pelo tempo assistido. Quem desligou anúncios, não
+  pode receber ou é quem está assistindo fica fora do rateio, e a parte dele
+  fica com o fundo. Com conta básica, sem gov.br, a parte dos criadores toda
+  fica com o fundo.
+
+  Cada exibição conta uma vez, só com os shorts que a rede mostrou antes
+  dela, e o tempo assistido somado não passa do tempo que passou desde que a
+  rede mostrou o bloco.
   """
-  def record_impression(%Account{} = viewer, campaign_id, watched) when is_list(watched) do
+  def record_impression(%Account{} = viewer, slot_id, watched, now \\ DateTime.utc_now())
+      when is_list(watched) do
+    now = DateTime.truncate(now, :second)
+
     with false <- Accounts.minor?(viewer),
-         %Campaign{status: :active} = campaign <- Repo.get(Campaign, campaign_id),
-         breakdown when breakdown != [] <- breakdown(watched),
-         {:ok, splits, fund} <- split(campaign.cents_per_impression, breakdown) do
-      %Impression{
+         %AdSlot{used_at: nil} = slot <- open_slot(viewer, slot_id, :shorts, now),
+         %Campaign{} = campaign <- deliverable(slot.campaign_id, now),
+         breakdown when breakdown != [] <- breakdown(viewer, slot, watched, now),
+         verified = Accounts.verified?(viewer),
+         {:ok, splits, fund} <- split(campaign.cents_per_impression, breakdown, verified) do
+      claim = from s in AdSlot, where: s.id == ^slot.id and is_nil(s.used_at)
+
+      Multi.new()
+      |> Multi.update_all(:slot, claim, set: [used_at: now])
+      |> Multi.run(:unused, fn _repo, %{slot: {count, _}} ->
+        if count == 1, do: {:ok, slot.id}, else: {:error, :already_counted}
+      end)
+      |> Multi.insert(:impression, %Impression{
         campaign_id: campaign.id,
+        slot_id: slot.id,
         viewer_id: viewer.id,
         viewer_region: viewer.region,
+        viewer_verified: verified,
         revenue_cents: campaign.cents_per_impression,
         fund_cents: fund,
         splits: splits,
         breakdown: breakdown
-      }
-      |> Repo.insert()
+      })
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{impression: impression}} -> {:ok, impression}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
     else
       true -> {:error, :not_found}
       nil -> {:error, :not_found}
-      %Campaign{} -> {:error, :not_found}
+      %AdSlot{} -> {:error, :already_counted}
       [] -> {:error, :no_shorts}
       {:error, _reason} -> {:error, :engine_unavailable}
     end
   end
 
-  defp breakdown(watched) do
-    watched_by_post =
-      for %{"post_id" => post_id, "watched_ms" => ms} <- Enum.take(watched, 12),
-          is_integer(post_id) and is_integer(ms),
+  # Um item por short do bloco, na ordem do id. O tempo de cada um vem do app,
+  # mas só dos shorts do bloco, e a soma cabe no tempo desde a exibição.
+  defp breakdown(viewer, slot, watched, now) do
+    reported =
+      for %{"post_id" => post_id, "watched_ms" => ms} <- watched,
+          is_integer(post_id) and is_integer(ms) and post_id in slot.post_ids,
           into: %{},
           do: {post_id, ms |> max(0) |> min(600_000)}
 
-    watched_by_post
-    |> Map.keys()
-    |> Social.get_posts()
-    |> Enum.filter(&(&1.kind == :short))
-    |> Enum.sort_by(& &1.id)
-    |> Enum.map(fn post ->
-      %{
-        "post_id" => post.id,
-        "author_id" => post.author_id,
-        "nickname" => post.author.nickname,
-        "watched_ms" => Map.fetch!(watched_by_post, post.id),
-        "monetized" => post.monetized and Accounts.can_monetize?(post.author)
-      }
-    end)
+    budget = DateTime.diff(now, slot.served_at, :millisecond) + @watch_slack_ms
+
+    {items, _left} =
+      slot.post_ids
+      |> Social.get_posts()
+      |> Enum.filter(&(&1.kind == :short))
+      |> Enum.sort_by(& &1.id)
+      |> Enum.map_reduce(budget, fn post, left ->
+        ms = min(Map.get(reported, post.id, 0), max(left, 0))
+
+        item = %{
+          "post_id" => post.id,
+          "author_id" => post.author_id,
+          "watched_ms" => ms,
+          "monetized" =>
+            post.monetized and post.author_id != viewer.id and
+              Accounts.can_monetize?(post.author)
+        }
+
+        {item, left - ms}
+      end)
+
+    items
   end
+
+  # Sem gov.br, nada garante que é uma pessoa: a parte dos criadores fica com
+  # o fundo, como no fechamento do mês.
+  defp split(revenue_cents, _breakdown, false), do: {:ok, %{}, revenue_cents}
 
   # Os criadores viram números (1, 2, ...) na ordem do id, como no fechamento
   # do mês (ads-engine/src/closing.rs).
-  defp split(revenue_cents, breakdown) do
+  defp split(revenue_cents, breakdown, true) do
     authors = breakdown |> Enum.map(& &1["author_id"]) |> Enum.uniq() |> Enum.sort()
     index = authors |> Enum.with_index(1) |> Map.new()
     reverse = Map.new(index, fn {author, number} -> {Integer.to_string(number), author} end)
@@ -244,33 +366,46 @@ defmodule RedeSocial.Ads do
   Um anúncio passou num vídeo, no ponto que o criador marcou. É isto que
   conta para o pagamento por faixas, depois das regras do antifraude no
   fechamento do mês.
+
+  Só vale a exibição que a rede mostrou, num dos vídeos daquele feed, e cada
+  ponto de cada vídeo conta uma vez por exibição.
   """
-  def record_ad_view(%Account{} = viewer, campaign_id, post_id, moment) do
+  def record_ad_view(%Account{} = viewer, slot_id, post_id, moment, now \\ DateTime.utc_now()) do
+    post_id = to_integer(post_id)
+
     with false <- Accounts.minor?(viewer),
-         %Campaign{status: :active} = campaign <- Repo.get(Campaign, campaign_id),
+         %AdSlot{} = slot <- open_slot(viewer, slot_id, :video, now),
+         true <- post_id in slot.post_ids,
+         %Campaign{} = campaign <- deliverable(slot.campaign_id, now),
          %Post{kind: :video, monetized: true} = post <- Social.get_post(post_id, viewer),
          true <- moment in post.ad_markers,
          true <- post.author_id != viewer.id,
          true <- Accounts.can_monetize?(post.author) do
       verified = Accounts.verified?(viewer)
 
-      {:ok, view} =
-        Repo.insert(%AdView{
-          campaign_id: campaign.id,
-          post_id: post.id,
-          creator_id: post.author_id,
-          viewer_id: viewer.id,
-          viewer_region: viewer.region,
-          viewer_verified: verified,
-          regional: campaign.scope == :regional,
-          moment: moment,
-          revenue_cents: campaign.cents_per_impression
-        })
+      %AdView{
+        campaign_id: campaign.id,
+        slot_id: slot.id,
+        post_id: post.id,
+        creator_id: post.author_id,
+        viewer_id: viewer.id,
+        viewer_region: viewer.region,
+        viewer_verified: verified,
+        regional: campaign.scope == :regional,
+        moment: moment,
+        revenue_cents: campaign.cents_per_impression
+      }
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:slot_id, :post_id, :moment])
+      |> case do
+        {:ok, %AdView{id: nil}} ->
+          {:error, :already_counted}
 
-      # A estimativa do mês no painel do criador. A conta de verdade sai no
-      # fechamento, com o antifraude.
-      if verified, do: Social.add_monthly_views(post.author_id, Social.current_month(), 1)
-      {:ok, view}
+        {:ok, view} ->
+          # A estimativa do mês no painel do criador. A conta de verdade sai
+          # no fechamento, com o antifraude.
+          if verified, do: Social.add_monthly_views(post.author_id, Social.current_month(), 1)
+          {:ok, view}
+      end
     else
       _ -> {:error, :not_found}
     end
@@ -524,30 +659,30 @@ defmodule RedeSocial.Ads do
         {:error, :own_campaign}
 
       decision == :approve ->
-        txid = "campanha#{campaign.id}" <> random_txid(12)
+        decide(campaign, fn locked ->
+          txid = "campanha#{locked.id}" <> random_txid(12)
 
-        with {:ok, brcode} <-
-               Pix.create_charge(campaign.price_cents, txid, "Campanha #{campaign.id}") do
-          campaign
-          |> Ecto.Changeset.change(
-            status: :awaiting_payment,
-            charge_txid: txid,
-            brcode: brcode,
-            reviewed_by_id: moderator.id,
-            reviewed_at: now()
-          )
-          |> Repo.update()
-        end
+          with {:ok, brcode} <-
+                 Pix.create_charge(locked.price_cents, txid, "Campanha #{locked.id}") do
+            [
+              status: :awaiting_payment,
+              charge_txid: txid,
+              brcode: brcode,
+              reviewed_by_id: moderator.id,
+              reviewed_at: now()
+            ]
+          end
+        end)
 
       match?({:reject, _}, decision) and Rules.get(elem(decision, 1)) ->
-        campaign
-        |> Ecto.Changeset.change(
-          status: :rejected,
-          rejection_rule: elem(decision, 1),
-          reviewed_by_id: moderator.id,
-          reviewed_at: now()
-        )
-        |> Repo.update()
+        decide(campaign, fn _locked ->
+          [
+            status: :rejected,
+            rejection_rule: elem(decision, 1),
+            reviewed_by_id: moderator.id,
+            reviewed_at: now()
+          ]
+        end)
 
       true ->
         {:error, :invalid_rule}
@@ -556,6 +691,25 @@ defmodule RedeSocial.Ads do
 
   def review(%Account{moderator: true}, %Campaign{}, _decision), do: {:error, :already_reviewed}
   def review(_account, _campaign, _decision), do: {:error, :not_found}
+
+  # Trava a campanha e decide só se ela ainda espera análise: duas pessoas da
+  # moderação nunca geram duas cobranças para a mesma campanha.
+  defp decide(%Campaign{id: id}, changes) do
+    Repo.transaction(fn ->
+      locked =
+        Repo.one(
+          from c in Campaign, where: c.id == ^id and c.status == :in_review, lock: "FOR UPDATE"
+        )
+
+      with %Campaign{} <- locked || {:error, :already_reviewed},
+           fields when is_list(fields) <- changes.(locked),
+           {:ok, updated} <- locked |> Ecto.Changeset.change(fields) |> Repo.update() do
+        updated
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
 
   @doc """
   O banco avisou que a cobrança foi paga. Só vale o valor exato da

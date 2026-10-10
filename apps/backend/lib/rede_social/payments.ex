@@ -231,10 +231,15 @@ defmodule RedeSocial.Payments do
     })
   end
 
+  # O mês de Brasília, como o dia do antifraude e da entrega dos anúncios.
+  @brasilia_offset -3 * 3600
+
   defp month_range(month) do
-    from = DateTime.new!(month, ~T[00:00:00], "Etc/UTC")
-    to = DateTime.new!(Date.shift(month, month: 1), ~T[00:00:00], "Etc/UTC")
-    {from, to}
+    start = fn date ->
+      date |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.add(-@brasilia_offset, :second)
+    end
+
+    {start.(month), start.(Date.shift(month, month: 1))}
   end
 
   defp video_views(from, to) do
@@ -243,6 +248,7 @@ defmodule RedeSocial.Payments do
         where: v.inserted_at >= ^from and v.inserted_at < ^to,
         order_by: [asc: v.id],
         select: %{
+          id: v.id,
           creator: v.creator_id,
           viewer: v.viewer_id,
           post: v.post_id,
@@ -278,15 +284,17 @@ defmodule RedeSocial.Payments do
   end
 
   defp creator_months(label, salt, video, shorts, carry) do
+    # Quem apagou a conta continua sendo uma pessoa só em cada view, sem
+    # virar a mesma pessoa de todas as outras contas apagadas.
     alias_for = fn
-      nil -> "conta-apagada"
-      viewer -> pseudonym(salt, viewer)
+      %{viewer: nil, id: id} -> pseudonym(salt, "apagada-#{id}")
+      %{viewer: viewer} -> pseudonym(salt, viewer)
     end
 
     by_creator =
       Enum.group_by(video, & &1.creator, fn view ->
         %{
-          viewer: alias_for.(view.viewer),
+          viewer: alias_for.(view),
           post: view.post,
           campaign: view.campaign,
           regional: view.regional,
@@ -302,6 +310,7 @@ defmodule RedeSocial.Payments do
           id: impression.id,
           revenue_cents: impression.revenue_cents,
           at: DateTime.to_unix(impression.inserted_at),
+          viewer_verified: impression.viewer_verified,
           views:
             Enum.map(impression.breakdown, fn item ->
               %{
@@ -319,8 +328,12 @@ defmodule RedeSocial.Payments do
       end)
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
+    # Quem apagou a conta não recebe: a parte dele fica com o fundo. Nos
+    # blocos dos shorts ele continua, porque o rateio dos outros depende dele.
     creators =
-      MapSet.new(Map.keys(by_creator) ++ Map.keys(shorts_by_creator) ++ Map.keys(carry))
+      (Map.keys(by_creator) ++ Map.keys(shorts_by_creator) ++ Map.keys(carry))
+      |> Enum.uniq()
+      |> existing_accounts()
 
     Map.new(creators, fn creator ->
       {creator,
@@ -334,6 +347,10 @@ defmodule RedeSocial.Payments do
     end)
   end
 
+  defp existing_accounts(ids) do
+    Repo.all(from a in Account, where: a.id in ^ids, select: a.id)
+  end
+
   @doc "Pseudônimo de quem viu: HMAC do id com a chave do mês."
   def pseudonym(salt, account_id) do
     :crypto.mac(:hmac, :sha256, salt, account_id)
@@ -344,6 +361,11 @@ defmodule RedeSocial.Payments do
   ## Repasse
 
   @doc "Manda o PIX de um extrato. Chamado pela fila (TransferWorker)."
+  def transfer(%Payout{status: :sending, account_id: nil} = payout) do
+    # A conta foi apagada antes do repasse: não há para quem mandar.
+    payout |> Ecto.Changeset.change(status: :failed, error: "conta apagada") |> Repo.update()
+  end
+
   def transfer(%Payout{status: :sending} = payout) do
     case Repo.get(PixKey, payout.account_id) do
       nil ->

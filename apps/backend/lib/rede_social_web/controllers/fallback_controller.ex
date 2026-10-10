@@ -138,6 +138,10 @@ defmodule RedeSocialWeb.FallbackController do
     error(conn, :unprocessable_entity, "O anúncio precisa dos shorts que vieram antes dele.")
   end
 
+  def call(conn, {:error, :already_counted}) do
+    error(conn, :conflict, "Este anúncio já foi contado.")
+  end
+
   def call(conn, {:error, :engine_unavailable}) do
     error(conn, :service_unavailable, "O motor de anúncios está fora do ar.")
   end
@@ -174,7 +178,7 @@ defmodule RedeSocialWeb.FallbackController do
     error(
       conn,
       :forbidden,
-      "Quem removeu o post não pode julgar o recurso. Outra pessoa da moderação precisa decidir."
+      "Quem removeu o post ou recorreu não pode julgar o recurso. Outra pessoa da moderação precisa decidir."
     )
   end
 

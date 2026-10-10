@@ -167,7 +167,7 @@ defmodule RedeSocial.Moderation do
 
   @doc """
   Decide o recurso: "restore" devolve o post, "uphold" mantém a remoção.
-  Quem removeu não pode julgar o próprio caso.
+  Quem removeu não pode julgar o próprio caso, e quem recorreu também não.
 
   A decisão só vale se o recurso ainda estiver em aberto no banco, para duas
   pessoas da moderação nunca decidirem o mesmo caso ao mesmo tempo.
@@ -176,7 +176,7 @@ defmodule RedeSocial.Moderation do
       when outcome in ["restore", "uphold"] do
     post = Repo.get!(Post, appeal.post_id)
 
-    if post.removed_by_id == moderator.id do
+    if moderator.id in [post.removed_by_id, post.author_id] do
       {:error, :same_moderator}
     else
       kind = if outcome == "restore", do: "restored", else: "upheld"

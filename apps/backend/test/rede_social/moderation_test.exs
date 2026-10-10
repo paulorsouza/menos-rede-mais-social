@@ -98,6 +98,14 @@ defmodule RedeSocial.ModerationTest do
       assert Moderation.decide(moderator, appeal, "restore") == {:error, :same_moderator}
     end
 
+    test "quem recorreu não julga o próprio recurso, mesmo sendo da moderação", context do
+      %{author: author, removed: removed} = context
+      {:ok, author} = Moderation.grant_moderator(author)
+      {:ok, appeal} = Moderation.appeal(author, removed, "")
+
+      assert Moderation.decide(author, appeal, "restore") == {:error, :same_moderator}
+    end
+
     test "outra pessoa da moderação pode devolver o post", %{author: author, removed: removed} do
       {:ok, appeal} = Moderation.appeal(author, removed, "Era um aviso, não spam.")
       other_moderator = moderator_fixture()
