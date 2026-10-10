@@ -65,6 +65,8 @@ jobs:
         with:
           otp-version: "27"
           elixir-version: "1.18"
+      # Os testes de mídia geram e convertem vídeos de verdade.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
@@ -82,3 +84,46 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  reproduzivel:
+    # Constrói o motor e o verificador com Nix duas vezes. A segunda vez
+    # recompila do zero e falha se um único byte do binário mudar.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - run: nix build .#engine-server .#verificador
+      - run: nix build .#engine-server --rebuild
+      - run: sha256sum result*/bin/*
+
+  assinatura:
+    # Na main, assina os binários com o Sigstore sem chave guardada: a
+    # identidade é a do próprio GitHub Actions, e a assinatura entra no
+    # Rekor, o log público do Sigstore. Qualquer pessoa confere com
+    #   cosign verify-blob --bundle engine-server.sigstore.json \
+    #     --certificate-identity-regexp 'github.com/.*/menos-rede-mais-social' \
+    #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    #     engine-server
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: reproduzivel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: sigstore/cosign-installer@v3
+      - run: |
+          nix build .#engine-server .#verificador
+          mkdir assinados
+          cp result/bin/engine-server result-1/bin/verificador assinados/
+          cd assinados
+          for binario in engine-server verificador; do
+            cosign sign-blob --yes --bundle "$binario.sigstore.json" "$binario"
+          done
+          sha256sum engine-server verificador > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binarios-assinados
+          path: assinados/

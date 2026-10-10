@@ -1,0 +1,12 @@
+# Imagem de desenvolvimento do backend: Elixir mais o ffmpeg, que converte os
+# vídeos e gera os da demonstração, e o espeak-ng, que dá voz a esses vídeos
+# para as legendas automáticas terem o que transcrever.
+FROM elixir:1.18
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN mix local.hex --force && mix local.rebar --force
+
+WORKDIR /app

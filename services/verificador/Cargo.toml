@@ -1,0 +1,18 @@
+[package]
+name = "verificador"
+description = "Verificador aberto da -rede+social: confere o feed e o registro público sem pedir licença"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+ads-engine = { path = "../ads-engine" }
+base64 = "0.22"
+feed-engine = { path = "../feed-engine" }
+hex = "0.4"
+registro = { path = "../registro" }
+serde.workspace = true
+serde_json = "1"
+sha2 = "0.10"

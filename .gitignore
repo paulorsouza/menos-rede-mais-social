@@ -4,6 +4,7 @@ services/target/
 # Node
 node_modules/
 apps/web/dist/
+*.tsbuildinfo
 
 # O apps/backend tem o próprio .gitignore para o Elixir.
 

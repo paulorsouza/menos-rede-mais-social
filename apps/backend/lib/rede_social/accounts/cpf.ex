@@ -18,11 +18,31 @@ defmodule RedeSocial.Accounts.CPF do
 
   def normalize(_cpf), do: {:error, :invalid_cpf}
 
+  @doc "123.456.789-09, a partir dos 11 dígitos."
+  def format(<<a::binary-3, b::binary-3, c::binary-3, d::binary-2>>), do: "#{a}.#{b}.#{c}-#{d}"
+  def format(other), do: other
+
   @doc """
   Impressão digital de um CPF já normalizado.
   """
   def fingerprint(normalized_cpf, key) do
     :crypto.mac(:hmac, :sha256, key, normalized_cpf)
+  end
+
+  @doc """
+  Gera um CPF de teste com dígitos verificadores corretos, para o ambiente de
+  demonstração e para os testes. Nunca é usado com dados de pessoas reais.
+  """
+  def generate_for_testing do
+    base = for _ <- 1..9, do: :rand.uniform(10) - 1
+
+    if length(Enum.uniq(base)) == 1 do
+      generate_for_testing()
+    else
+      first = check_digit(base)
+      second = check_digit(base ++ [first])
+      Enum.map_join(base ++ [first, second], &Integer.to_string/1)
+    end
   end
 
   defp valid_digits?(digits) do

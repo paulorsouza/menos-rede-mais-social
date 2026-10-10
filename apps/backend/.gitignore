@@ -25,3 +25,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 rede_social-*.tar
 
+
+# Fotos e vídeos em desenvolvimento, sem S3, e a pasta de trabalho dos envios.
+/priv/uploads/
+/priv/media/
+/priv/staging/

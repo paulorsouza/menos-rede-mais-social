@@ -1,11 +1,19 @@
-# Ambiente de desenvolvimento local. Usuário e senha valem só para a máquina de
-# quem desenvolve; produção usa outra configuração.
+# Ambiente de desenvolvimento e de demonstração. Usuário e senha valem só para
+# a máquina de quem desenvolve; produção usa outra configuração.
 #
+#   docker compose up --build   sobe tudo: banco, motor, armazenamento, borda,
+#                               backend e front
 #   docker compose up -d db     só o banco
-#   docker compose up           banco + backend (sem precisar instalar Elixir)
 #
-# Se a porta 5432 já estiver ocupada na sua máquina, escolha outra:
-#   DB_PORT=5433 docker compose up -d db
+# A demo abre em http://localhost:5173. Se a porta 5432 já estiver ocupada na
+# sua máquina, escolha outra no arquivo .env (DB_PORT=5433).
+
+# Chave do backend no Garage. Vale só para a demo.
+x-s3: &s3
+  S3_BUCKET: midia
+  S3_ACCESS_KEY_ID: GK6d656e6f732d726564652d6d
+  S3_SECRET_ACCESS_KEY: 6d656e6f732d726564652d6d6169732d736f6369616c2d64656d6f2d73336b21
+
 services:
   db:
     image: postgres:17
@@ -22,24 +30,148 @@ services:
       timeout: 3s
       retries: 10
 
-  backend:
-    image: elixir:1.18
-    working_dir: /app
-    command: sh -c "mix local.hex --force && mix local.rebar --force && mix setup && mix phx.server"
+  engine:
+    build:
+      context: .
+      dockerfile: services/engine-server/Dockerfile
+    ports:
+      - "7070:7070"
+    volumes:
+      # Os parâmetros públicos do repositório, os mesmos que o motor publica
+      # na página de transparência.
+      - ./params:/app/params:ro
+      # Só na demonstração: as fatias dos guardiões de teste, para simular uma
+      # ordem judicial. Em produção as fatias ficam com os guardiões.
+      - ./services/cofre/demo:/app/cofre-demo:ro
     environment:
+      COFRE_DEMO_FATIAS: /app/cofre-demo
+
+  # Armazenamento de objetos no padrão S3: fotos e vídeos já processados.
+  garage:
+    image: dxflrs/garage:v2.4.1
+    volumes:
+      - ./infra/garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+
+  # Monta o cluster de um nó, a chave do backend e o balde público. Roda uma
+  # vez a cada subida e não mexe no que já existe.
+  garage-init:
+    image: curlimages/curl:8.16.0
+    command: ["sh", "/preparar.sh"]
+    environment:
+      <<: *s3
+      GARAGE_ADMIN_URL: http://garage:3903
+      GARAGE_ADMIN_TOKEN: demo-garage-admin
+    volumes:
+      - ./infra/garage/preparar.sh:/preparar.sh:ro
+    depends_on:
+      - garage
+
+  # Faz o papel da CDN: entrega fotos e vídeos guardando cópias perto de
+  # quem assiste.
+  borda:
+    image: nginx:1.28-alpine
+    ports:
+      - "${BORDA_PORT:-8090}:8080"
+    volumes:
+      - ./infra/borda/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - garage
+
+  # Lives: recebe do navegador (WebRTC) ou do OBS (rtmp://localhost/ao-vivo),
+  # entrega em HLS e grava. O backend autoriza cada conexão.
+  ao-vivo:
+    image: bluenviron/mediamtx:1.21.2
+    ports:
+      - "1935:1935"
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+    environment:
+      # Para transmitir de um celular na mesma rede, troque pelo IP da máquina.
+      MTX_WEBRTCADDITIONALHOSTS: ${AO_VIVO_HOST:-127.0.0.1}
+    volumes:
+      - ./infra/ao-vivo/mediamtx.yml:/mediamtx.yml:ro
+      - gravacoes:/gravacoes
+
+  # Legendas automáticas (whisper.cpp). Opcional, porque o modelo é grande:
+  #   docker compose --profile legendas up --build
+  legendas:
+    profiles: ["legendas"]
+    build: ./infra/legendas
+    environment:
+      MODELO: ${MODELO_LEGENDAS:-small}
+    volumes:
+      - legendas-modelos:/modelos
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 60
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile.dev
+    command: sh -c "mix setup && mix phx.server"
+    environment:
+      <<: *s3
       DB_HOST: db
+      ENGINE_URL: http://engine:7070
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: garage
+      # Sem o perfil "legendas", o serviço não existe e os vídeos ficam sem legenda.
+      WHISPER_URL: http://legendas:8080
+      AO_VIVO_API: http://ao-vivo:9997
+      AO_VIVO_SEGREDO: demo-ao-vivo
+      GRAVACOES_DIR: /gravacoes
     ports:
       - "4000:4000"
     volumes:
       - ./apps/backend:/app
+      # Os parâmetros públicos de vídeo (params/video.toml).
+      - ./params:/params:ro
+      # As gravações das lives, para virarem vídeo quando a live acaba.
+      - gravacoes:/gravacoes
       # deps e _build ficam em volumes do Docker, fora da pasta do projeto.
       - backend-deps:/app/deps
       - backend-build:/app/_build
     depends_on:
       db:
         condition: service_healthy
+      engine:
+        condition: service_started
+      garage-init:
+        condition: service_completed_successfully
+      # Com o perfil "legendas", o backend espera o modelo baixar, para os
+      # vídeos da demo já saírem legendados.
+      legendas:
+        condition: service_healthy
+        required: false
+
+  web:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      API_URL: http://backend:4000
+      MEDIA_URL: http://borda:8080
+      LIVE_URL: http://ao-vivo
+      VITE_POLLING: "1"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   db-data:
+  garage-meta:
+  garage-data:
+  legendas-modelos:
+  gravacoes:
   backend-deps:
   backend-build:
+  web-node-modules:

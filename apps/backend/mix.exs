@@ -47,7 +47,14 @@ defmodule RedeSocial.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"},
+      # Confere a assinatura do id_token do gov.br (Login Único).
+      {:jose, "~> 1.11"},
+      # Fila de trabalhos sobre o próprio PostgreSQL: transcodificação e legendas.
+      {:oban, "~> 2.24"},
+      # Lê os parâmetros públicos de vídeo (params/video.toml).
+      {:toml, "~> 0.7.0"}
     ]
   end
 
@@ -62,8 +69,17 @@ defmodule RedeSocial.MixProject do
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
+      # Volta a demonstração ao estado inicial: apaga as mídias e recria os dados.
+      "demo.reset": [&remove_media/1, "ecto.drop --force-drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
+  end
+
+  defp remove_media(_args) do
+    Mix.Task.run("app.config")
+    {:ok, _} = Application.ensure_all_started(:req)
+    RedeSocial.Storage.delete_prefix("")
+    File.rm_rf!(Application.get_env(:rede_social, :staging_dir, "priv/staging"))
   end
 end

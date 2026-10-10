@@ -1,12 +1,12 @@
 # Regras pétreas da -rede+social
 
-Estas são as regras que sustentam o projeto. Elas valem acima de qualquer RFC e de qualquer decisão do conselho, da entidade gestora ou de quem estiver no governo. Podem ser reforçadas, mas nunca enfraquecidas ou revogadas.
+Estas são as regras que sustentam o projeto. Elas valem acima de qualquer RFC e de qualquer decisão do conselho, da entidade gestora, de quem financia a rede ou de quem estiver no governo. Podem ser reforçadas, mas nunca enfraquecidas ou revogadas.
 
 Toda spec, todo código e toda decisão do projeto precisa respeitá-las. Em caso de dúvida, vale a leitura que mais protege quem usa a rede.
 
 ## 1. A rede não tem dono
 
-A rede não pertence a nenhum governo, partido, empresa, igreja ou pessoa. O governo paga a infraestrutura, mas não decide o que aparece, o que sai do ar nem como os algoritmos funcionam.
+A rede não pertence a nenhum governo, partido, empresa, igreja ou pessoa. Quem paga a infraestrutura não decide o que aparece, o que sai do ar nem como os algoritmos funcionam.
 
 ## 2. Não existe lucro
 
@@ -32,9 +32,9 @@ Sempre existe uma opção de feed sem algoritmo, em ordem de data. E qualquer pe
 
 O perfil público mostra só o apelido, e a rede não guarda o CPF em texto. Descobrir quem está por trás de uma conta só é possível com ordem judicial e com a participação de guardiões independentes, e cada caso entra no registro público.
 
-## 8. O governo não vigia ninguém pela rede
+## 8. Nem quem paga nem o governo vigiam ninguém pela rede
 
-Nenhum órgão de governo tem acesso ao que as pessoas postam, assistem ou fazem na rede, a não ser por ordem judicial.
+Nem quem financia a rede nem órgão de governo nenhum tem acesso ao que as pessoas postam, assistem ou fazem nela, a não ser por ordem judicial.
 
 ## 9. Toda remoção tem motivo e recurso
 

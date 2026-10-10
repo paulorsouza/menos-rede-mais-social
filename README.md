@@ -1,8 +1,32 @@
 # -rede+social
 
-Uma rede social pública, de código aberto e sem fins lucrativos, pensada para o Brasil. O governo paga a infraestrutura, mas a rede é de quem usa. O porquê está no [manifesto](MANIFESTO.md), e o como está no [plano inicial](docs/plano-inicial.md). As regras que nenhuma decisão pode quebrar estão nas [regras pétreas](specs/regras-petreas.md).
+Um exemplo de rede social pública, de código aberto e sem fins lucrativos, feito com as ferramentas e as leis do Brasil. Não pretende ser a rede social do país: a ideia é servir de ponto de partida para quem quiser fazer uma de verdade. No desenho, quem paga a estrutura é um investidor que não busca lucro, de preferência do setor público, e a rede é de quem usa. O porquê está no [manifesto](MANIFESTO.md), e o como está no [plano inicial](docs/plano-inicial.md). As regras que nenhuma decisão pode quebrar estão nas [regras pétreas](specs/regras-petreas.md).
 
-Por enquanto este repositório é um esqueleto. Já tem a estrutura das três partes do sistema, as regras de feed e de pagamento a criadores implementadas e testadas, e o básico de cada aplicação para começar a Fase 1 (o protótipo).
+Este repositório já tem uma demonstração completa: feed com cinco modos e o "por que estou vendo isto", textos curtos, fotos, vídeos e shorts, anúncios nacionais e regionais com rateio entre criadores, painel do criador e página de transparência. O login gov.br é simulado e os dados são fictícios.
+
+## Rodando a demonstração
+
+Você só precisa do Docker. Na raiz do repositório:
+
+```bash
+docker compose up --build
+```
+
+Na primeira vez demora alguns minutos. Depois, abra http://localhost:5173 e entre como uma das pessoas de exemplo. O passo a passo para apresentar está em [docs/demo.md](docs/demo.md).
+
+As legendas automáticas ficam num perfil à parte, porque o modelo de fala tem 466 MB e é baixado na primeira vez:
+
+```bash
+docker compose --profile legendas up --build
+```
+
+Se a porta 5432 já estiver em uso na sua máquina, crie um arquivo `.env` na raiz com `DB_PORT=5433`. A borda usa a 8090 (`BORDA_PORT`), as lives usam a 1935 (RTMP, para o OBS) e a 8189 (WebRTC).
+
+Para voltar a demo ao estado inicial:
+
+```bash
+docker compose exec backend mix demo.reset
+```
 
 ## Como o repositório está organizado
 
@@ -13,31 +37,52 @@ apps/backend/            backend em Elixir (Phoenix + Ecto + PostgreSQL)
 services/                serviços em Rust (workspace Cargo)
   feed-engine/           os modos de feed, determinísticos e auditáveis
   ads-engine/            exibições, faixas de pagamento e rateio dos shorts
-params/                  parâmetros públicos do feed e dos anúncios
+  engine-server/         servidor HTTP dos dois motores, usado pelo backend
+params/                  parâmetros públicos do feed, dos anúncios e do vídeo
+infra/                   configuração dos serviços da demo: armazenamento (Garage),
+                         borda (nginx), lives (MediaMTX) e legendas (whisper.cpp)
 proto/                   contratos gRPC entre o backend e os serviços em Rust
 docs/plano-inicial.md    o plano: produto, dinheiro, arquitetura, governança e fases
+docs/demo.md             roteiro para apresentar a demonstração
 docs/rfcs/               propostas de mudança nas regras da rede
 ```
 
-O backend em Elixir atende o app e a web e coordena o resto. O que precisa ser auditado (feed e anúncios) e o processamento pesado de vídeo ficam em Rust. Os números que mexem no feed e no dinheiro de criadores não ficam espalhados no código: estão em `params/`, num formato que qualquer pessoa consegue ler, e só mudam por RFC.
+O backend em Elixir atende o app e a web e coordena o resto. O que precisa ser auditado (feed e anúncios) fica em Rust, e o backend só pergunta ao motor: "em que ordem mostro estes posts para esta pessoa?" e "como divido o dinheiro deste anúncio?". Os números que mexem no feed e no dinheiro de criadores estão em `params/`, num formato que qualquer pessoa consegue ler, e só mudam por RFC. A página de transparência mostra o hash do arquivo que o motor está usando.
 
-## Rodando na sua máquina
+Por enquanto o motor conversa com o backend em JSON, com os mesmos campos dos contratos em `proto/`. O gRPC entra quando os dois lados estiverem estáveis.
 
-Você vai precisar de Node 20.19 ou mais novo, Rust 1.85 ou mais novo e Docker. Elixir é opcional, porque o backend também roda dentro do Docker. Quem usa Nix pode entrar no ambiente com `nix develop` (o `flake.nix` ainda não foi testado).
+## O que já funciona
 
-Banco e backend, sem instalar Elixir:
+- **Feed** por grafo, com quatro modos (na bolha, furando a bolha, meio a meio e por data), todos calculados pelo motor em Rust. Não existe categoria nem tag: a bolha sugere o que curtem as pessoas que curtem o que você curte, e furando a bolha mostra o que ninguém perto de você tocou. Cada post mostra por que apareceu.
+- **Em alta**, uma aba com a mesma lista para todo mundo: o que mais gente curtiu e salvou nas últimas horas, de todo tipo de post.
+- **Contas** pelo Login Único do gov.br (OpenID Connect; sem credencial, a demo usa um gov.br simulado), com apelido e selo de verificado. O CPF não fica em texto: há uma impressão digital, que barra contas duplicadas, e uma cópia selada que só 3 de 5 guardiões abrem juntos, com ordem judicial. Conta básica, sem gov.br, não publica.
+- **Ordem judicial** com os guardiões: cada um entrega a sua parte com uma prova, três abrem o CPF e os acessos uma única vez, e a abertura entra no registro público sem identificar a pessoa. O cofre está em `services/cofre`, com a linha de comando que os guardiões usam.
+- **Moderação** com regras públicas e numeradas, denúncia no "?" de cada post, remoção citando a regra, aviso ao autor e recurso julgado por outra pessoa da moderação.
+- **Menores de idade** com perfil privado e sem anúncio. **Seus dados**: baixar tudo e apagar a conta. **Registros de acesso** do Marco Civil, com o IP selado e apagados depois de seis meses.
+- **Posts** de texto curto (140 caracteres, sem respostas), foto, vídeo e short, com curtidas, salvamentos e seguidores. É um campo só: o tipo sai do arquivo anexado (vídeo em pé vira short), e não tem tag para escolher.
+- **Vídeo de verdade**: o arquivo sobe enquanto você escreve a legenda e retoma de onde parou se a conexão cair. O vídeo vira HLS com várias qualidades, ganha capa e legenda automática, e o player troca de qualidade conforme a internet. O modo "Economizar dados" segura tudo em 360.
+- **Lives** pelo navegador ou pelo OBS. Quando acabam, a gravação vira vídeo comum.
+- **Shorts** com um anúncio a cada 6. A parte dos criadores é dividida entre os do bloco, pelo tempo assistido, e a tela mostra o rateio na hora.
+- **Vídeos** com anúncio só nos pontos que o criador escolheu. Quem é bronze não monetiza.
+- **Anunciar**: a empresa monta a campanha (no país todo ou numa cidade) com o preço da tabela pública, a moderação aprova, a cobrança vai por PIX e o motor espalha as exibições ao longo do dia.
+- **Pagamento dos criadores**: o mês fecha no dia 1º pelo motor aberto, com regras contra fraude, faixas decrescentes como no imposto de renda e repasse por PIX. Cada criador baixa o extrato e confere a conta no verificador.
+- **Transparência**: versão do motor, hash e conteúdo dos parâmetros em uso, números da rede, biblioteca pública de anúncios e quanto custa uma hora de vídeo.
+
+O que ainda é simulado ou não existe está listado no fim do [roteiro da demonstração](docs/demo.md#o-que-é-real-e-o-que-é-simulado).
+
+## Desenvolvendo
+
+Para trabalhar fora do Docker você vai precisar de Node 20.19 ou mais novo e Rust 1.85 ou mais novo. Elixir é opcional, porque o backend também roda no Docker. Quem usa Nix pode entrar no ambiente com `nix develop`.
+
+Motor em Rust (testes e servidor na porta 7070):
 
 ```bash
-docker compose up
+cd services
+cargo test
+cargo run -p engine-server
 ```
 
-Se a porta 5432 já estiver em uso na sua máquina, troque a porta do banco:
-
-```bash
-DB_PORT=5433 docker compose up
-```
-
-Front (abre em http://localhost:5173 e fala com o backend em :4000):
+Front fora do Docker, falando com o backend em :4000:
 
 ```bash
 cd apps/web
@@ -45,26 +90,45 @@ npm install
 npm run dev
 ```
 
-Serviços em Rust:
+Mais detalhes do backend, inclusive como rodar os testes, estão em [apps/backend/README.md](apps/backend/README.md).
+
+## Conferir sem confiar na rede
+
+A rede foi feita para ser conferida por quem não confia nela. Quatro coisas dá para conferir hoje, do seu computador.
+
+**O binário do motor sai do código publicado.** Com Nix, compile duas vezes; a segunda recompila do zero e para com erro se um único byte mudar. O hash do binário é o mesmo para qualquer pessoa, e a CI assina os binários da `main` com o Sigstore.
+
+```bash
+nix build .#engine-server
+nix build .#engine-server --rebuild
+sha256sum result/bin/engine-server
+```
+
+**O seu feed seguiu as regras publicadas.** No app, toque no chip do motor e em "Baixar a conta deste feed". O verificador refaz a conta com o mesmo código, confere o recibo assinado pelo motor e confere que cada curtida, view e seguidor usado estava no retrato do grafo publicado.
 
 ```bash
 cd services
-cargo test
+cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json
 ```
 
-Mais detalhes do backend, inclusive como rodar com Elixir instalado, estão em [apps/backend/README.md](apps/backend/README.md).
+**O seu pagamento seguiu a fórmula.** No painel do criador, abra um mês em "Extratos" e baixe o arquivo. O verificador refaz o fechamento com o código do motor de anúncios e confere que cada linha está na árvore publicada no registro.
 
-## O que já funciona
+```bash
+cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json
+```
 
-- **Motor de feed** (`services/feed-engine`): na bolha, furando a bolha, meio a meio, por data e ranking público. Cada item vem com o motivo de ter aparecido, e o mesmo conjunto de dados sempre gera o mesmo feed.
-- **Motor de anúncios** (`services/ads-engine`): conversão de horas compradas em exibições, pagamento por faixas decrescentes (calculado como no imposto de renda, então crescer nunca diminui o ganho) e rateio dos shorts por tempo assistido, sem perder centavo no arredondamento.
-- **Backend** (`apps/backend`): `GET /api/health` e o cadastro de contas com apelido, selo de verificado e impressão digital do CPF (o número em si não é guardado).
-- **Front** (`apps/web`): tela inicial com as seções, o seletor de modo de feed e o aviso de backend no ar.
+**O registro público não foi reescrito.** Baixe o cabeçalho e as entradas na página de transparência (ou em `/api/registro` e `/api/registro/entradas`). Guarde o cabeçalho; da próxima vez, a prova de consistência mostra que nada do que estava nele foi trocado ou apagado.
 
-## Próximos passos (Fase 1)
+```bash
+cargo run -p verificador -- registro registro.json entradas.json
+cargo run -p verificador -- registro registro.json entradas.json --anterior registro-antigo.json --consistencia prova.json
+```
 
-- Login gov.br em ambiente de teste (OpenID Connect).
-- Posts de texto curto e de fotos, e o feed por data.
+## Próximos passos
+
+- Atestação de hardware no motor (AMD SEV-SNP ou Intel TDX), para provar qual binário está rodando agora.
+- Cerimônia distribuída dos guardiões do CPF, e a chave do registro num cofre de hardware.
+- Escala: vizinhos pré-calculados, tabelas particionadas e réplicas de leitura.
 - Servidores gRPC em Rust a partir dos contratos em `proto/`.
 - Fixar as actions do CI por hash de commit.
 
@@ -74,4 +138,4 @@ Leia o [CONTRIBUTING.md](CONTRIBUTING.md). Se você achou uma falha de seguranç
 
 ## Licença
 
-Ainda não foi escolhida. A proposta é a AGPL-3.0, que obriga quem rodar uma versão modificada da rede como serviço a publicar o código. Enquanto a licença não estiver definida, o código não pode ser reutilizado por terceiros.
+[AGPL-3.0](LICENSE). Qualquer pessoa pode usar, estudar, modificar e redistribuir o código. Quem rodar uma versão modificada da rede como serviço, mesmo sem distribuir o programa, é obrigado a publicar o código dessa versão. É isso que impede alguém de pegar a rede, fechar e operar por conta própria.

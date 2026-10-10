@@ -1,14 +1,19 @@
-//! Motor de anúncios da -rede+social: quanto cada criador recebe.
+//! Motor de anúncios da -rede+social: quanto custa anunciar, como as
+//! exibições se espalham pelo dia e quanto cada criador recebe.
 //!
 //! Dinheiro é sempre contado em centavos inteiros. Quando uma divisão não é
 //! exata, os centavos que sobram vão para quem tinha a maior fração, e o empate
 //! é decidido pelo id do criador. Nenhum centavo some no arredondamento.
 
+pub mod closing;
+pub mod pacing;
 mod params;
 
 use std::collections::BTreeMap;
 
-pub use params::{Params, ParamsError, PayoutBand};
+use serde::{Deserialize, Serialize};
+
+pub use params::{Antifraud, Delivery, Params, ParamsError, Payout, PayoutBand, Pricing};
 
 pub type UserId = u64;
 
@@ -19,6 +24,31 @@ pub fn impressions_per_day(hours_per_day: u64, ad_seconds: u64) -> u64 {
         "a duração do anúncio precisa ser maior que zero"
     );
     hours_per_day * 3600 / ad_seconds
+}
+
+/// O preço de uma campanha. O preço por exibição é tabelado em
+/// `params/ads.toml`, igual para todo anunciante: não tem leilão.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Quote {
+    pub impressions_per_day: u64,
+    pub days: u64,
+    pub cents_per_impression: u64,
+    pub total_cents: u64,
+}
+
+pub fn quote(hours_per_day: u64, days: u64, regional: bool, params: &Params) -> Quote {
+    let per_day = impressions_per_day(hours_per_day, params.pricing.ad_seconds);
+    let price = if regional {
+        params.pricing.regional_cents_per_impression
+    } else {
+        params.pricing.national_cents_per_impression
+    };
+    Quote {
+        impressions_per_day: per_day,
+        days,
+        cents_per_impression: price,
+        total_cents: per_day * days * price,
+    }
 }
 
 /// Quantas views o criador recebe pelo valor cheio depois de aplicar as faixas.
@@ -49,7 +79,7 @@ pub fn monthly_payout_cents(views: u64, cents_per_thousand: u64, bands: &[Payout
 }
 
 /// Um short assistido antes de um anúncio.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShortView {
     pub creator_id: UserId,
     pub watched_ms: u64,
@@ -120,6 +150,16 @@ mod tests {
         let params = params();
         assert_eq!(params.shorts_ad_every, 6);
         assert_eq!(params.payout_bands.len(), 4);
+        assert_eq!(params.delivery.hourly_weights.len(), 24);
+    }
+
+    #[test]
+    fn a_campaign_costs_impressions_times_the_public_price() {
+        // 10 horas por dia de um anúncio de 15 segundos, por 30 dias, nacional.
+        let quote = quote(10, 30, false, &params());
+        assert_eq!(quote.impressions_per_day, 2400);
+        assert_eq!(quote.total_cents, 2400 * 30 * 2);
+        assert!(super::quote(10, 30, true, &params()).total_cents < quote.total_cents);
     }
 
     #[test]
@@ -182,11 +222,10 @@ mod tests {
 
     #[test]
     fn rising_percent_is_rejected() {
-        let source = "version = 1\nshorts_ad_every = 6\n\
-            [[payout_bands]]\nup_to = 100\npercent = 50\n\
-            [[payout_bands]]\npercent = 80\n";
+        let source =
+            include_str!("../../../params/ads.toml").replace("percent = 30", "percent = 80");
         assert!(matches!(
-            Params::from_toml_str(source),
+            Params::from_toml_str(&source),
             Err(ParamsError::Invalid(_))
         ));
     }

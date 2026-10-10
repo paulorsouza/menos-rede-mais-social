@@ -1,0 +1,51 @@
+# MediaMTX de demonstração: recebe as lives (do navegador por WebRTC/WHIP, ou
+# do OBS por RTMP), entrega em HLS de baixa latência e grava cada live, que
+# vira um vídeo comum quando acaba. O que não está aqui fica no padrão do
+# MediaMTX 1.21.
+logLevel: info
+
+# Quem pode transmitir e assistir quem decide é o backend, a cada conexão.
+# A API não passa por ele: ela só existe dentro da rede do Docker, para o
+# backend perguntar quais lives estão no ar.
+authMethod: http
+authHTTPAddress: http://backend:4000/api/ao-vivo/autorizar?segredo=demo-ao-vivo
+authHTTPExclude:
+  - action: api
+  - action: metrics
+  - action: pprof
+
+api: true
+apiAddress: :9997
+
+rtsp: false
+srt: false
+playback: false
+moq: false
+
+rtmp: true
+rtmpAddress: :1935
+
+hls: true
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsAllowOrigins: []
+
+webrtc: true
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+# Dentro do Docker, o IP do contêiner não serve para o navegador: ele chega
+# pelo endereço da máquina (MTX_WEBRTCADDITIONALHOSTS, no compose).
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [127.0.0.1]
+
+pathDefaults:
+  record: true
+  recordPath: /gravacoes/%path/%Y-%m-%d_%H-%M-%S-%f
+  recordFormat: fmp4
+  recordSegmentDuration: 1h
+  recordDeleteAfter: 1d
+
+# Só existem caminhos ao-vivo/<id da live>.
+paths:
+  "~^ao-vivo/[0-9a-f-]{36}$": {}

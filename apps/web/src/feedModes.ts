@@ -6,16 +6,18 @@ export type FeedMode =
   | 'chronological'
   | 'public_ranking'
 
+// "Em alta" (public_ranking) não entra no seletor: tem aba própria, igual
+// para todo mundo.
 export const FEED_MODES: { id: FeedMode; label: string; description: string }[] = [
   {
     id: 'bubble',
     label: 'Na bolha',
-    description: 'Mais de quem você segue e dos temas de que você gosta.',
+    description: 'Quem você segue e o que curtem as pessoas que curtem o que você curte.',
   },
   {
     id: 'outside_bubble',
     label: 'Furando a bolha',
-    description: 'Posts bem avaliados de temas que você ainda não acompanha.',
+    description: 'Só o que ninguém perto de você curtiu ou assistiu. Um autor de cada vez.',
   },
   {
     id: 'mixed',
@@ -26,10 +28,5 @@ export const FEED_MODES: { id: FeedMode; label: string; description: string }[] 
     id: 'chronological',
     label: 'Por data',
     description: 'Só quem você segue, do mais novo para o mais antigo. Sem algoritmo.',
-  },
-  {
-    id: 'public_ranking',
-    label: 'Ranking público',
-    description: 'A mesma fórmula para todo mundo, publicada junto com o código.',
   },
 ]

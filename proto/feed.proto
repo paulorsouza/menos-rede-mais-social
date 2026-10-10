@@ -15,21 +15,38 @@ enum FeedMode {
   FEED_MODE_OUTSIDE_BUBBLE = 2;  // furando a bolha
   FEED_MODE_MIXED = 3;           // meio a meio
   FEED_MODE_CHRONOLOGICAL = 4;   // sem algoritmo: por data
-  FEED_MODE_PUBLIC_RANKING = 5;  // sem algoritmo: ranking público
+  FEED_MODE_PUBLIC_RANKING = 5;  // em alta: ranking público, igual para todos
 }
 
 message Candidate {
   uint64 post_id = 1;
   uint64 author_id = 2;
   int64 created_at = 3;  // segundos Unix
-  repeated string topics = 4;
+  reserved 4;            // topics: a rede não categoriza posts
   uint32 likes = 5;
   uint32 saves = 6;
 }
 
 message Viewer {
+  uint64 id = 3;  // para os posts da própria pessoa não voltarem como sugestão
   repeated uint64 follows = 1;
-  map<string, uint32> interests = 2;  // peso de 0 a 100 por tema
+  reserved 2;     // interests: o feed sai do grafo, não de um perfil por tema
+}
+
+// Uma ligação no grafo: alguém curtiu ou assistiu a um post. O motor decide o
+// que conta (janela de tempo, tempo mínimo de vídeo) com params/feed.toml.
+enum EdgeKind {
+  EDGE_KIND_UNSPECIFIED = 0;
+  EDGE_KIND_LIKE = 1;
+  EDGE_KIND_WATCH = 2;
+}
+
+message Edge {
+  uint64 user_id = 1;
+  uint64 post_id = 2;
+  EdgeKind kind = 3;
+  int64 at = 4;           // segundos Unix
+  uint64 watched_ms = 5;  // só para WATCH
 }
 
 message RankRequest {
@@ -38,16 +55,20 @@ message RankRequest {
   repeated Candidate candidates = 3;
   // O relógio vem de fora para o cálculo poder ser refeito depois.
   int64 now = 4;
+  // Quem curtiu e assistiu o quê, perto de quem vê o feed e nos candidatos.
+  repeated Edge edges = 5;
 }
 
 // Por que o post apareceu ("por que estou vendo isto").
 message Reason {
   oneof kind {
     bool you_follow = 1;
-    string topic = 2;
-    string outside_bubble = 3;
-    bool public_ranking = 4;
+    uint32 follows_engaged = 5;  // quantas pessoas que você segue curtiram ou assistiram
+    uint32 similar_engaged = 6;  // quantas pessoas de gosto parecido curtiram ou assistiram
+    bool outside_bubble = 7;     // ninguém perto de você curtiu ou assistiu
+    bool public_ranking = 4;     // em alta, igual para todos
   }
+  reserved 2, 3;  // topic e outside_bubble por tema: não existem mais categorias
 }
 
 message RankedItem {
