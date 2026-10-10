@@ -30,11 +30,19 @@ defmodule RedeSocial.GraphCommitments do
   alias RedeSocial.Registro.Merkle
   alias RedeSocial.Social.{Follow, Like, Post, View}
 
-  @doc "Tira um retrato do grafo e publica a raiz no registro."
-  def take_snapshot(now \\ DateTime.utc_now()) do
-    now = DateTime.truncate(now, :second)
+  # O retrato fecha um minuto antes de ser tirado, para a réplica de leitura
+  # já ter tudo o que aconteceu até ali.
+  @replica_margin_seconds 60
+
+  @doc """
+  Tira um retrato do grafo e publica a raiz no registro. O retrato tem
+  exatamente as ligações de antes de `cutoff`, que é a hora publicada: o
+  verificador aceita sem prova só ligação de `cutoff` em diante.
+  """
+  def take_snapshot(cutoff \\ DateTime.add(DateTime.utc_now(), -@replica_margin_seconds)) do
+    now = DateTime.truncate(cutoff, :second)
     salt = :crypto.strong_rand_bytes(32)
-    leaves = salt |> leaf_texts() |> Enum.map(&Merkle.leaf_hash/1) |> Enum.sort()
+    leaves = salt |> leaf_texts(now) |> Enum.map(&Merkle.leaf_hash/1) |> Enum.sort()
     root = leaves |> Merkle.levels() |> Merkle.levels_root()
 
     Repo.transaction(fn ->
@@ -106,7 +114,7 @@ defmodule RedeSocial.GraphCommitments do
 
   # Todas as ligações do grafo, com as mesmas regras de Social.graph_edges/2:
   # ninguém se liga ao próprio post, e post removido não conta.
-  defp leaf_texts(salt) do
+  defp leaf_texts(salt, cutoff) do
     alias_for = fn id -> pseudonym(salt, id) end
 
     likes =
@@ -114,7 +122,7 @@ defmodule RedeSocial.GraphCommitments do
         from l in Like,
           join: p in Post,
           on: p.id == l.post_id,
-          where: p.author_id != l.account_id and is_nil(p.removed_at),
+          where: p.author_id != l.account_id and is_nil(p.removed_at) and l.inserted_at < ^cutoff,
           select: {l.account_id, l.post_id, l.inserted_at}
       )
 
@@ -123,14 +131,18 @@ defmodule RedeSocial.GraphCommitments do
         from v in View,
           join: p in Post,
           on: p.id == v.post_id,
-          where: p.author_id != v.viewer_id and is_nil(p.removed_at),
+          where: p.author_id != v.viewer_id and is_nil(p.removed_at) and v.inserted_at < ^cutoff,
           group_by: [v.viewer_id, v.post_id],
           select:
             {v.viewer_id, v.post_id, max(v.watched_ms), type(max(v.inserted_at), :utc_datetime)}
       )
 
     follows =
-      Repo.read().all(from f in Follow, select: {f.follower_id, f.followed_id, f.inserted_at})
+      Repo.read().all(
+        from f in Follow,
+          where: f.inserted_at < ^cutoff,
+          select: {f.follower_id, f.followed_id, f.inserted_at}
+      )
 
     Enum.map(likes, fn {user, post, at} -> like_text(alias_for.(user), post, unix(at)) end) ++
       Enum.map(watches, fn {user, post, ms, at} ->

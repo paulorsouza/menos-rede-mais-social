@@ -6,6 +6,9 @@ defmodule RedeSocial.GraphCommitmentsTest do
   alias RedeSocial.{Engine, Feed, GraphCommitments, Registro, Social}
   alias RedeSocial.Registro.Merkle
 
+  # Um retrato que já pega tudo o que o teste criou.
+  defp after_now, do: DateTime.add(DateTime.utc_now(), 1)
+
   describe "Merkle por níveis" do
     test "dá a mesma raiz e as mesmas provas da versão recursiva" do
       for n <- 1..40 do
@@ -28,7 +31,7 @@ defmodule RedeSocial.GraphCommitmentsTest do
       post = post_fixture(account_fixture())
       {:ok, true} = Social.toggle_like(liker, post)
 
-      {:ok, snapshot} = GraphCommitments.take_snapshot()
+      {:ok, snapshot} = GraphCommitments.take_snapshot(after_now())
 
       assert snapshot.size == 1
       assert %{kind: "raiz-dados", data: data} = Registro.last_of_kind("raiz-dados")
@@ -38,8 +41,8 @@ defmodule RedeSocial.GraphCommitmentsTest do
 
     test "o pseudônimo muda de um retrato para outro" do
       account = account_fixture()
-      {:ok, first} = GraphCommitments.take_snapshot()
-      {:ok, second} = GraphCommitments.take_snapshot()
+      {:ok, first} = GraphCommitments.take_snapshot(after_now())
+      {:ok, second} = GraphCommitments.take_snapshot(after_now())
 
       refute GraphCommitments.pseudonym(first, account.id) ==
                GraphCommitments.pseudonym(second, account.id)
@@ -53,7 +56,7 @@ defmodule RedeSocial.GraphCommitmentsTest do
       post = post_fixture(followed)
       {:ok, true} = Social.toggle_follow(viewer, followed)
       {:ok, true} = Social.toggle_like(viewer, post_fixture(account_fixture()))
-      {:ok, snapshot} = GraphCommitments.take_snapshot()
+      {:ok, snapshot} = GraphCommitments.take_snapshot(after_now())
 
       # Uma curtida depois do retrato fica marcada como recente.
       {:ok, true} = Social.toggle_like(viewer, post)

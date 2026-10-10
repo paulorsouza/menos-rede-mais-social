@@ -110,13 +110,13 @@ sha256sum result/bin/engine-server
 
 ```bash
 cd services
-cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json
+cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json --cabecalho registro.json
 ```
 
 **O seu pagamento seguiu a fórmula.** No painel do criador, abra um mês em "Extratos" e baixe o arquivo. O verificador refaz o fechamento com o código do motor de anúncios e confere que cada linha está na árvore publicada no registro.
 
 ```bash
-cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json
+cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json --cabecalho registro.json
 ```
 
 **O registro público não foi reescrito.** Baixe o cabeçalho e as entradas na página de transparência (ou em `/api/registro` e `/api/registro/entradas`). Guarde o cabeçalho; da próxima vez, a prova de consistência mostra que nada do que estava nele foi trocado ou apagado.

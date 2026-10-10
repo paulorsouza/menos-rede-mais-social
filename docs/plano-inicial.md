@@ -362,7 +362,7 @@ Feito:
 - Registro público: árvore de Merkle no formato do Certificate Transparency, com cabeçalho assinado e provas de inclusão e de consistência. O banco recusa mudar ou apagar entradas. Entram nele cada versão do motor (com o hash dos parâmetros e a chave dos recibos), cada retrato do grafo e cada ordem judicial aberta.
 - Recibo do feed: o motor assina cada cálculo, ligando a entrada, a saída, os parâmetros e a versão. Qualquer pessoa baixa a conta do próprio feed com um toque.
 - Retratos do grafo: as curtidas, views e seguidores viram uma árvore com pseudônimos, e só a raiz é publicada. A conta do feed traz a prova de que cada ligação usada estava no retrato.
-- Verificador aberto, que não fala com a rede: refaz o feed, confere o recibo, as provas dos dados e o registro.
+- Verificador aberto, que não fala com a rede: refaz o feed, confere o recibo, as provas dos dados e o registro. A chave do recibo tem que ser a de uma versão do motor publicada no registro, as entradas têm que ser as do cabeçalho assinado, e ligação sem prova só passa se for mais nova que o retrato (o retrato guarda exatamente o que veio antes da hora publicada).
 - Build reproduzível com Nix: o motor compilado duas vezes do zero sai idêntico, byte por byte. A CI repete isso a cada envio e, na `main`, assina os binários com o Sigstore; a assinatura já roda de verdade desde o primeiro envio para a `main`.
 
 Falta:
@@ -371,6 +371,7 @@ Falta:
 - Escala. As leituras pesadas do feed já vão para uma réplica de leitura quando ela existe. Medido na demo (110 contas, 1.735 ligações): o feed meio a meio sai em 69 ms, juntar as 984 ligações da vizinhança leva 16 ms e o retrato do grafo, 175 ms. O problema é a forma: hoje as ligações são juntadas a cada pedido e o retrato relê o grafo inteiro. Com milhões de pessoas, isso pede vizinhos pré-calculados, retrato incremental e as tabelas de views e curtidas particionadas por mês. Essas mudanças entram quando houver carga real para medir, e não antes.
 - gRPC entre o backend e o motor. O JSON com os campos de `proto/` funciona e é o que o verificador usa para o recibo; o gRPC entra junto com a escala, quando o tamanho das mensagens pesar.
 - Ajustar os pesos do grafo com uso real, por RFC.
+- Provar também os números de cada post candidato (curtidas, salvamentos, data e autor) e que nenhuma ligação ficou de fora. Hoje a conta do feed prova as ligações usadas, não as que faltaram; isso pede que o retrato comprometa os posts e a lista completa de ligações de cada pessoa.
 
 ### Fase 3 · Vídeo
 

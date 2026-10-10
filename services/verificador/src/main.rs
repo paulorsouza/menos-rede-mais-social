@@ -4,12 +4,19 @@
 //! e ele confere tudo localmente, com o mesmo código que roda no motor.
 //!
 //! verificador feed <conta-do-feed.json> --parametros <params/feed.toml> [--chave <base64>]
-//!                  [--registro <entradas.json>]
+//!                  [--registro <entradas.json> [--cabecalho <registro.json>]]
 //!     Refaz o cálculo do seu feed, confere o recibo assinado pelo motor e
 //!     confere que cada curtida, view e seguidor usado estava no último
-//!     retrato do grafo. Com --registro, confere também que a raiz desse
-//!     retrato foi publicada no registro público.
+//!     retrato do grafo, ou é mais novo que ele. Com --registro, confere
+//!     também que a raiz e a hora desse retrato foram publicadas no registro
+//!     público e que a chave do recibo é a de uma versão publicada do motor.
+//!     Com --cabecalho, confere que as entradas são as do cabeçalho assinado.
 //!     Baixe a conta em "Baixar a conta deste feed", no chip do motor.
+//!
+//!     Limite: a conta prova as ligações usadas, não os números de cada post
+//!     candidato (curtidas, salvamentos, data e autor) nem que nenhuma
+//!     ligação ficou de fora. Isso pede que o retrato comprometa também os
+//!     posts e a lista completa de ligações de cada pessoa.
 //!
 //! verificador registro <registro.json> <entradas.json> [--chave <base64>]
 //!                      [--anterior <registro-antigo.json> --consistencia <prova.json>]
@@ -20,7 +27,8 @@
 //!     entradas.json:   GET /api/registro/entradas
 //!     prova.json:      GET /api/registro/consistencia?de=<tamanho antigo>
 //!
-//! verificador pagamento <extrato.json> --parametros <params/ads.toml> [--registro <entradas.json>]
+//! verificador pagamento <extrato.json> --parametros <params/ads.toml>
+//!                       [--registro <entradas.json> [--cabecalho <registro.json>]]
 //!     Refaz o fechamento do seu mês com o mesmo código do motor de anúncios:
 //!     quais views com anúncio contaram, as faixas, a sua parte de cada
 //!     anúncio dos shorts e o total. Confere que cada linha do extrato está na
@@ -87,6 +95,8 @@ struct SnapshotJson {
     id: u64,
     raiz: String,
     tamanho: u64,
+    /// A hora do retrato, como foi publicada no registro.
+    em: String,
 }
 
 #[derive(Deserialize)]
@@ -113,7 +123,13 @@ struct FollowProofJson {
 #[derive(Deserialize)]
 struct RecentJson {
     ligacoes: Vec<usize>,
-    seguindo: Vec<u64>,
+    seguindo: Vec<RecentFollowJson>,
+}
+
+#[derive(Deserialize)]
+struct RecentFollowJson {
+    seguido: u64,
+    desde: i64,
 }
 
 fn feed(args: &[String]) -> Result<bool, String> {
@@ -182,8 +198,22 @@ fn feed(args: &[String]) -> Result<bool, String> {
         "a assinatura do recibo é da chave do motor",
     );
 
+    let published = match flags.get("--registro") {
+        Some(path) => Some(load_registry(path, flags.get("--cabecalho"))?),
+        None => None,
+    };
+    if let Some(published) = &published {
+        ok &= published.ok;
+        ok &= check(
+            published
+                .of_kind("motor")
+                .any(|payload| payload["chave_recibos"].as_str() == Some(key.as_str())),
+            "a chave do recibo é a de uma versão do motor publicada no registro",
+        );
+    }
+
     match &account.retrato {
-        Some(snapshot) => ok &= data_proofs(&account, snapshot, flags.get("--registro"))?,
+        Some(snapshot) => ok &= data_proofs(&account, snapshot, published.as_ref())?,
         None => println!(
             "  (a conta não traz retrato do grafo: os dados de entrada não foram conferidos)"
         ),
@@ -195,7 +225,7 @@ fn feed(args: &[String]) -> Result<bool, String> {
 fn data_proofs(
     account: &FeedAccount,
     snapshot: &SnapshotJson,
-    registry: Option<&String>,
+    published: Option<&Published>,
 ) -> Result<bool, String> {
     let root = parse_hash(&snapshot.raiz).ok_or("raiz do retrato mal formada")?;
     let proofs = account.provas.as_ref().ok_or("o retrato veio sem provas")?;
@@ -256,10 +286,18 @@ fn data_proofs(
         );
         covered[proof.item] = true;
     }
+    // Ligação sem prova só vale se for mais nova que o retrato: o que
+    // aconteceu antes dele tinha que estar nele.
+    let taken_at = parse_utc(&snapshot.em).ok_or("hora do retrato mal formada")?;
+    let mut recent_are_newer = true;
     for item in &recent.ligacoes {
         if let Some(slot) = covered.get_mut(*item) {
             *slot = true;
         }
+        recent_are_newer &= input
+            .edges
+            .get(*item)
+            .is_some_and(|edge| edge.at >= taken_at);
     }
     ok &= check(
         every_edge,
@@ -271,14 +309,29 @@ fn data_proofs(
     ok &= check(
         covered.iter().all(|c| *c),
         &format!(
-            "nenhuma ligação ficou sem prova; {} são mais novas que o retrato",
+            "nenhuma ligação ficou sem prova; {} vieram depois do retrato",
             recent.ligacoes.len()
+        ),
+    );
+    ok &= check(
+        recent_are_newer,
+        &format!(
+            "as ligações sem prova são mesmo mais novas que o retrato ({})",
+            snapshot.em
         ),
     );
 
     let viewer = alias(input.viewer.id)?;
     let mut every_follow = true;
-    let mut followed: std::collections::BTreeSet<u64> = recent.seguindo.iter().copied().collect();
+    let mut followed: std::collections::BTreeSet<u64> = recent
+        .seguindo
+        .iter()
+        .map(|follow| follow.seguido)
+        .collect();
+    every_follow &= recent
+        .seguindo
+        .iter()
+        .all(|follow| follow.desde >= taken_at);
     for proof in &proofs.seguindo {
         every_follow &= input.viewer.follows.contains(&proof.seguido);
         let text = format!("follow|{viewer}|{}|{}", alias(proof.seguido)?, proof.desde);
@@ -294,25 +347,21 @@ fn data_proofs(
     ok &= check(
         every_follow && followed == input.viewer.follows,
         &format!(
-            "quem você segue estava no retrato ({} com prova, {} mais novos)",
+            "quem você segue estava no retrato ou começou depois dele ({} com prova, {} mais novos)",
             proofs.seguindo.len(),
             recent.seguindo.len()
         ),
     );
 
-    if let Some(path) = registry {
-        let entries: EntriesFile = read_json(path)?;
-        let published = entries.entries.iter().any(|entry| {
-            entry.kind == "raiz-dados"
-                && leaf_hash(entry.data.as_bytes())
-                    == parse_hash(&entry.leaf_hash).unwrap_or_default()
-                && entry
-                    .data
-                    .contains(&format!("\"raiz\":\"{}\"", snapshot.raiz))
-        });
+    if let Some(published) = published {
         ok &= check(
-            published,
-            "a raiz do retrato está publicada no registro público",
+            published.of_kind("raiz-dados").any(|payload| {
+                payload["raiz"].as_str() == Some(snapshot.raiz.as_str())
+                    && payload["retrato"].as_u64() == Some(snapshot.id)
+                    && payload["ligacoes"].as_u64() == Some(snapshot.tamanho)
+                    && payload["em"].as_str() == Some(snapshot.em.as_str())
+            }),
+            "a raiz, o tamanho e a hora do retrato estão publicados no registro público",
         );
     } else {
         println!("  (passe --registro entradas.json para conferir que a raiz foi publicada)");
@@ -432,20 +481,13 @@ fn payment(args: &[String]) -> Result<bool, String> {
     );
 
     if let Some(registry_path) = flags.get("--registro") {
-        let entries: EntriesFile = read_json(registry_path)?;
-        let published = entries.entries.iter().any(|entry| {
-            entry.kind == "fechamento"
-                && leaf_hash(entry.data.as_bytes())
-                    == parse_hash(&entry.leaf_hash).unwrap_or_default()
-                && entry
-                    .data
-                    .contains(&format!("\"raiz\":\"{}\"", statement.fechamento.raiz))
-                && entry
-                    .data
-                    .contains(&format!("\"mes\":\"{}\"", statement.mes))
-        });
+        let published = load_registry(registry_path, flags.get("--cabecalho"))?;
+        ok &= published.ok;
         ok &= check(
-            published,
+            published.of_kind("fechamento").any(|payload| {
+                payload["raiz"].as_str() == Some(statement.fechamento.raiz.as_str())
+                    && payload["mes"].as_str() == Some(statement.mes.as_str())
+            }),
             "a raiz do fechamento está publicada no registro público",
         );
     } else {
@@ -585,6 +627,99 @@ fn registry(args: &[String]) -> Result<bool, String> {
     Ok(ok)
 }
 
+/// As entradas do registro, conferidas e já lidas.
+struct Published {
+    entries: Vec<(String, Value)>,
+    ok: bool,
+}
+
+impl Published {
+    fn of_kind<'a>(&'a self, kind: &'a str) -> impl Iterator<Item = &'a Value> + 'a {
+        self.entries
+            .iter()
+            .filter(move |(entry_kind, _)| entry_kind == kind)
+            .map(|(_, payload)| payload)
+    }
+}
+
+/// Lê entradas.json conferindo o hash de cada entrada e, com o cabeçalho,
+/// que elas são exatamente as que o registro assinou. Sem o cabeçalho, um
+/// arquivo montado à mão passaria; por isso o aviso.
+fn load_registry(entries_path: &str, head_path: Option<&String>) -> Result<Published, String> {
+    let file: EntriesFile = read_json(entries_path)?;
+    let mut ok = true;
+    let mut leaves = Vec::with_capacity(file.entries.len());
+    let mut entries = Vec::with_capacity(file.entries.len());
+    let mut every_leaf = true;
+
+    for (expected, entry) in file.entries.iter().enumerate() {
+        let leaf = leaf_hash(entry.data.as_bytes());
+        let prefix = format!("{}\n", entry.kind);
+        every_leaf &= entry.index == expected as u64
+            && parse_hash(&entry.leaf_hash) == Some(leaf)
+            && entry.data.starts_with(&prefix);
+        leaves.push(leaf);
+        let payload = entry
+            .data
+            .strip_prefix(&prefix)
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or(Value::Null);
+        entries.push((entry.kind.clone(), payload));
+    }
+    ok &= check(
+        every_leaf,
+        "cada entrada do registro gera o hash de folha que diz ter",
+    );
+
+    match head_path {
+        Some(path) => {
+            let head_file: HeadFile = read_json(path)?;
+            let head = tree_head(&head_file.head)?;
+            ok &= check(
+                head.verify(
+                    &decode_key(&head_file.head.public_key)?,
+                    &decode_signature(&head_file.head.signature)?,
+                ) && leaves.len() as u64 == head.size
+                    && root(&leaves) == head.root,
+                "as entradas são as do cabeçalho assinado do registro",
+            );
+        }
+        None => println!(
+            "  (passe também --cabecalho registro.json para conferir que estas entradas são as \
+             que o registro assinou)"
+        ),
+    }
+    Ok(Published { entries, ok })
+}
+
+/// "2026-10-10T22:41:23Z" em segundos Unix. Só o formato que a rede publica.
+fn parse_utc(text: &str) -> Option<i64> {
+    let b = text.as_bytes();
+    if b.len() != 20 || b[4] != b'-' || b[7] != b'-' || b[10] != b'T' || b[19] != b'Z' {
+        return None;
+    }
+    let number = |range: std::ops::Range<usize>| text.get(range)?.parse::<i64>().ok();
+    let (year, month, day) = (number(0..4)?, number(5..7)?, number(8..10)?);
+    let (hour, minute, second) = (number(11..13)?, number(14..16)?, number(17..19)?);
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 60
+    {
+        return None;
+    }
+    // Dias desde 1970-01-01 (algoritmo de Howard Hinnant).
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(days * 86_400 + hour * 3600 + minute * 60 + second)
+}
+
 fn tree_head(json: &HeadJson) -> Result<TreeHead, String> {
     Ok(TreeHead {
         size: json.size,
@@ -638,4 +773,18 @@ fn flag<'a>(flags: &'a Flags, name: &str) -> Result<&'a str, String> {
         .get(name)
         .map(String::as_str)
         .ok_or(format!("falta {name}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_utc;
+
+    #[test]
+    fn reads_the_time_the_network_publishes() {
+        assert_eq!(parse_utc("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(parse_utc("2026-10-10T22:41:23Z"), Some(1_791_672_083));
+        assert_eq!(parse_utc("2024-02-29T12:00:00Z"), Some(1_709_208_000));
+        assert_eq!(parse_utc("2026-10-10 22:41:23"), None);
+        assert_eq!(parse_utc("2026-13-10T22:41:23Z"), None);
+    }
 }
