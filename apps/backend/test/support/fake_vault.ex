@@ -31,7 +31,7 @@ defmodule RedeSocial.Vault.Fake do
   end
 
   @impl true
-  def demo_partial(index, _sealed) do
+  def demo_partial(index, _sealed, _context) do
     {:ok, %{"index" => index, "point" => "fake", "challenge" => "fake", "response" => "fake"}}
   end
 end

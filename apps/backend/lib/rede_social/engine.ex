@@ -45,8 +45,8 @@ defmodule RedeSocial.Engine do
     post("/vault/open", %{sealed: sealed, context: context, partials: partials})
   end
 
-  def vault_demo_partial(index, sealed),
-    do: post("/vault/demo-partial", %{index: index, sealed: sealed})
+  def vault_demo_partial(index, sealed, context),
+    do: post("/vault/demo-partial", %{index: index, sealed: sealed, context: context})
 
   defp get(path), do: request(method: :get, url: path)
   defp post(path, body), do: request(method: :post, url: path, json: body)

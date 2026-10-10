@@ -18,7 +18,7 @@ defmodule RedeSocial.IdentificationTest do
   defp give(order, guardian) do
     partials =
       Map.new(Identification.items(order), fn item ->
-        {:ok, partial} = Fake.demo_partial(guardian, item.sealed)
+        {:ok, partial} = Fake.demo_partial(guardian, item.sealed, item.context)
         {item.key, partial}
       end)
 
@@ -117,7 +117,7 @@ defmodule RedeSocial.IdentificationTest do
 
     test "parte de um guardião que diz ser outro é recusada", %{target: target, officer: officer} do
       {:ok, order} = Identification.create_order(officer, target.nickname, %{"court" => "Juízo"})
-      {:ok, partial} = Fake.demo_partial(2, "x")
+      {:ok, partial} = Fake.demo_partial(2, "x", "y")
       partials = Map.new(Identification.items(order), &{&1.key, partial})
 
       assert Identification.submit(order, 3, partials) == {:error, {:bad_partial, "cpf"}}

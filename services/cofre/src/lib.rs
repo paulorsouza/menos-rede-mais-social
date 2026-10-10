@@ -12,12 +12,20 @@
 //!   esquema de Shamir. Cada guardião guarda a sua fatia e publica a chave de
 //!   conferência dela.
 //! - Selar um CPF usa só a chave pública: sorteia `r`, publica `R = r·G` e
-//!   cifra o texto com uma chave derivada de `r·P`.
-//! - Para abrir, cada guardião calcula a sua parte `D = fatia·R` e prova, sem
-//!   revelar a fatia, que fez a conta certa. Três partes, combinadas pelos
-//!   coeficientes de Lagrange, dão `r·P` e abrem aquele CPF. A parte de um
-//!   guardião só serve para aquele `R`, então abrir uma conta não ajuda a
-//!   abrir outra, e a chave secreta nunca é remontada na abertura.
+//!   cifra o texto com uma chave derivada de `r·P`. O selado leva também
+//!   `R̄ = r·H` e uma prova de que quem selou conhece `r`, amarrada ao
+//!   contexto (a conta) e ao texto cifrado. É o TDH2 de Shoup e Gennaro.
+//! - Para abrir, cada guardião confere a prova do selado com o contexto que
+//!   está no pedido, calcula a sua parte `D = fatia·R` e prova, sem revelar a
+//!   fatia, que fez a conta certa. Três partes, combinadas pelos coeficientes
+//!   de Lagrange, dão `r·P` e abrem aquele CPF. A parte de um guardião só
+//!   serve para aquele `R`, então abrir uma conta não ajuda a abrir outra, e a
+//!   chave secreta nunca é remontada na abertura.
+//!
+//! Sem a prova do selado, a rede poderia pedir a parte dos guardiões para
+//! `k·R` de outra conta, com um contexto qualquer, e depois dividir por `k`:
+//! o guardião abriria uma conta achando que abria outra. Com a prova, montar
+//! um selado para `k·R` exige conhecer `k·r`, e quem não selou não conhece.
 //!
 //! Limite assumido na Fase 1: a cerimônia gera a chave inteira num computador
 //! desligado da rede e a apaga em seguida. Antes do piloto, a cerimônia passa
@@ -41,9 +49,18 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha512};
 use zeroize::Zeroize;
 
-const SEALED_VERSION: u8 = 1;
+const SEALED_VERSION: u8 = 2;
 const KDF_INFO: &[u8] = b"rede-social cofre v1";
 const PROOF_DOMAIN: &[u8] = b"rede-social cofre prova v1";
+const SEAL_PROOF_DOMAIN: &[u8] = b"rede-social cofre selado v2";
+const H_DOMAIN: &[u8] = b"rede-social cofre H v2";
+
+/// O segundo gerador, `H`, que ninguém conhece como múltiplo de `G`.
+fn h() -> RistrettoPoint {
+    let mut bytes = [0u8; 64];
+    bytes.copy_from_slice(&Sha512::digest(H_DOMAIN));
+    RistrettoPoint::from_uniform_bytes(&bytes)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -51,7 +68,12 @@ pub enum Error {
     InvalidEncoding(&'static str),
     UnknownGuardian(u8),
     BadProof(u8),
-    NotEnoughPartials { needed: u8, got: usize },
+    /// O selado não prova que foi feito para este contexto.
+    BadSealed,
+    NotEnoughPartials {
+        needed: u8,
+        got: usize,
+    },
     DecryptFailed,
 }
 
@@ -62,6 +84,7 @@ impl std::fmt::Display for Error {
             Error::InvalidEncoding(what) => write!(f, "{what} mal formado"),
             Error::UnknownGuardian(index) => write!(f, "guardião {index} não existe"),
             Error::BadProof(index) => write!(f, "a parte do guardião {index} não confere"),
+            Error::BadSealed => write!(f, "o selado não confere com o contexto do pedido"),
             Error::NotEnoughPartials { needed, got } => {
                 write!(f, "precisa de {needed} guardiões, chegaram {got}")
             }
@@ -107,10 +130,14 @@ pub struct Ceremony {
     pub shares: Vec<Share>,
 }
 
-/// Um texto selado: o ponto efêmero `R`, o nonce e o texto cifrado.
+/// Um texto selado: o ponto efêmero `R`, `R̄ = r·H`, a prova de que quem
+/// selou conhece `r`, o nonce e o texto cifrado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Sealed {
     ephemeral: RistrettoPoint,
+    ephemeral_h: RistrettoPoint,
+    challenge: Scalar,
+    response: Scalar,
     nonce: [u8; 12],
     ciphertext: Vec<u8>,
 }
@@ -177,8 +204,8 @@ pub fn ceremony(threshold: u8, count: u8, names: &[String]) -> Result<Ceremony, 
 pub fn seal(public_key: &RistrettoPoint, plaintext: &[u8], context: &[u8]) -> Sealed {
     let mut r = Scalar::random(&mut OsRng);
     let ephemeral = r * G;
+    let ephemeral_h = r * h();
     let shared = r * public_key;
-    r.zeroize();
 
     let mut nonce = [0u8; 12];
     OsRng.fill_bytes(&mut nonce);
@@ -193,16 +220,56 @@ pub fn seal(public_key: &RistrettoPoint, plaintext: &[u8], context: &[u8]) -> Se
         )
         .expect("cifrar com chave e nonce do tamanho certo não falha");
 
+    // Prova de que quem selou conhece r, amarrada ao contexto e ao texto.
+    let mut s = Scalar::random(&mut OsRng);
+    let challenge = seal_challenge(
+        context,
+        &nonce,
+        &ciphertext,
+        &ephemeral,
+        &ephemeral_h,
+        &(s * G),
+        &(s * h()),
+    );
+    let response = s + challenge * r;
+    s.zeroize();
+    r.zeroize();
+
     Sealed {
         ephemeral,
+        ephemeral_h,
+        challenge,
+        response,
         nonce,
         ciphertext,
     }
 }
 
-/// O guardião calcula a sua parte para um selado e prova que usou a fatia
-/// cuja chave de conferência está publicada.
-pub fn partial(share: &Share, sealed: &Sealed) -> Partial {
+/// Confere que o selado foi feito para este contexto, por quem conhecia `r`.
+/// O guardião faz isso antes de calcular a parte dele.
+pub fn verify_sealed(sealed: &Sealed, context: &[u8]) -> Result<(), Error> {
+    let commitment_g = sealed.response * G - sealed.challenge * sealed.ephemeral;
+    let commitment_h = sealed.response * h() - sealed.challenge * sealed.ephemeral_h;
+    let expected = seal_challenge(
+        context,
+        &sealed.nonce,
+        &sealed.ciphertext,
+        &sealed.ephemeral,
+        &sealed.ephemeral_h,
+        &commitment_g,
+        &commitment_h,
+    );
+    if expected == sealed.challenge {
+        Ok(())
+    } else {
+        Err(Error::BadSealed)
+    }
+}
+
+/// O guardião confere o selado com o contexto do pedido, calcula a sua parte
+/// e prova que usou a fatia cuja chave de conferência está publicada.
+pub fn partial(share: &Share, sealed: &Sealed, context: &[u8]) -> Result<Partial, Error> {
+    verify_sealed(sealed, context)?;
     let point = share.secret * sealed.ephemeral;
     let verification_key = share.secret * G;
 
@@ -221,12 +288,12 @@ pub fn partial(share: &Share, sealed: &Sealed) -> Partial {
     let response = nonce + challenge * share.secret;
     nonce.zeroize();
 
-    Partial {
+    Ok(Partial {
         index: share.index,
         point,
         challenge,
         response,
-    }
+    })
 }
 
 /// Confere a prova de uma parte contra a chave de conferência publicada.
@@ -256,17 +323,21 @@ pub fn verify_partial(
 }
 
 /// Abre um selado com as partes de pelo menos `threshold` guardiões. Cada
-/// parte é conferida antes; partes repetidas do mesmo guardião contam uma vez.
+/// parte é conferida antes, e a que não confere fica de fora: um guardião com
+/// defeito não impede os outros de abrir. Partes repetidas do mesmo guardião
+/// contam uma vez.
 pub fn open(
     guardians: &Guardians,
     sealed: &Sealed,
     partials: &[Partial],
     context: &[u8],
 ) -> Result<Vec<u8>, Error> {
+    verify_sealed(sealed, context)?;
     let mut chosen: BTreeMap<u8, &Partial> = BTreeMap::new();
     for partial in partials {
-        verify_partial(guardians, sealed, partial)?;
-        chosen.entry(partial.index).or_insert(partial);
+        if verify_partial(guardians, sealed, partial).is_ok() {
+            chosen.entry(partial.index).or_insert(partial);
+        }
     }
     if chosen.len() < usize::from(guardians.threshold) {
         return Err(Error::NotEnoughPartials {
@@ -297,14 +368,50 @@ pub fn open(
 }
 
 fn lagrange_at_zero(index: u8, indices: &BTreeSet<u8>) -> Scalar {
+    lagrange_at(0, index, indices)
+}
+
+/// O coeficiente de Lagrange de `index`, no ponto `x`, para estes índices.
+fn lagrange_at(x: u8, index: u8, indices: &BTreeSet<u8>) -> Scalar {
+    let x = Scalar::from(u64::from(x));
     let x_i = Scalar::from(u64::from(index));
     indices
         .iter()
         .filter(|other| **other != index)
         .fold(Scalar::ONE, |acc, other| {
             let x_j = Scalar::from(u64::from(*other));
-            acc * x_j * (x_j - x_i).invert()
+            acc * (x - x_j) * (x_i - x_j).invert()
         })
+}
+
+fn seal_challenge(
+    context: &[u8],
+    nonce: &[u8; 12],
+    ciphertext: &[u8],
+    ephemeral: &RistrettoPoint,
+    ephemeral_h: &RistrettoPoint,
+    commitment_g: &RistrettoPoint,
+    commitment_h: &RistrettoPoint,
+) -> Scalar {
+    let mut hash = Sha512::new();
+    hash.update(SEAL_PROOF_DOMAIN);
+    // Os campos de tamanho livre levam o tamanho antes, para não se confundirem.
+    hash.update((context.len() as u64).to_be_bytes());
+    hash.update(context);
+    hash.update(nonce);
+    hash.update((ciphertext.len() as u64).to_be_bytes());
+    hash.update(ciphertext);
+    for element in [
+        G,
+        h(),
+        *ephemeral,
+        *ephemeral_h,
+        *commitment_g,
+        *commitment_h,
+    ] {
+        hash.update(element.compress().as_bytes());
+    }
+    Scalar::from_hash(hash)
 }
 
 fn cipher(shared: &RistrettoPoint, ephemeral: &RistrettoPoint) -> ChaCha20Poly1305 {
@@ -372,30 +479,45 @@ fn decode_scalar(text: &str) -> Result<Scalar, Error> {
     Option::from(Scalar::from_canonical_bytes(bytes)).ok_or(Error::InvalidEncoding("escalar"))
 }
 
+const SEALED_HEADER: usize = 1 + 4 * 32 + 12;
+
 impl Sealed {
-    /// Versão, R, nonce e texto cifrado, em sequência.
+    /// Versão, R, R̄, desafio, resposta, nonce e texto cifrado, em sequência.
+    /// A versão 1, sem a prova, não é mais aceita.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(1 + 32 + 12 + self.ciphertext.len());
+        let mut bytes = Vec::with_capacity(SEALED_HEADER + self.ciphertext.len());
         bytes.push(SEALED_VERSION);
         bytes.extend_from_slice(self.ephemeral.compress().as_bytes());
+        bytes.extend_from_slice(self.ephemeral_h.compress().as_bytes());
+        bytes.extend_from_slice(self.challenge.as_bytes());
+        bytes.extend_from_slice(self.response.as_bytes());
         bytes.extend_from_slice(&self.nonce);
         bytes.extend_from_slice(&self.ciphertext);
         bytes
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        if bytes.len() < 1 + 32 + 12 + 16 || bytes[0] != SEALED_VERSION {
+        if bytes.len() < SEALED_HEADER + 16 || bytes[0] != SEALED_VERSION {
             return Err(Error::InvalidEncoding("selado"));
         }
-        let ephemeral = CompressedRistretto::from_slice(&bytes[1..33])
-            .map_err(|_| Error::InvalidEncoding("selado"))?
-            .decompress()
-            .ok_or(Error::InvalidEncoding("selado"))?;
-        let nonce: [u8; 12] = bytes[33..45].try_into().expect("12 bytes");
+        let point = |range: std::ops::Range<usize>| {
+            CompressedRistretto::from_slice(&bytes[range])
+                .ok()
+                .and_then(|point| point.decompress())
+                .ok_or(Error::InvalidEncoding("selado"))
+        };
+        let scalar = |range: std::ops::Range<usize>| {
+            let array: [u8; 32] = bytes[range].try_into().expect("32 bytes");
+            Option::from(Scalar::from_canonical_bytes(array))
+                .ok_or(Error::InvalidEncoding("selado"))
+        };
         Ok(Sealed {
-            ephemeral,
-            nonce,
-            ciphertext: bytes[45..].to_vec(),
+            ephemeral: point(1..33)?,
+            ephemeral_h: point(33..65)?,
+            challenge: scalar(65..97)?,
+            response: scalar(97..129)?,
+            nonce: bytes[129..141].try_into().expect("12 bytes"),
+            ciphertext: bytes[SEALED_HEADER..].to_vec(),
         })
     }
 
@@ -511,12 +633,49 @@ impl Guardians {
                 "o mínimo de guardiões não bate com a lista".into(),
             ));
         }
-        Ok(Guardians {
+        if members.contains_key(&0) {
+            return Err(Error::InvalidParams("o guardião 0 não existe".into()));
+        }
+        let guardians = Guardians {
             version: file.version,
             threshold: file.threshold,
             public_key: decode_point(&file.public_key)?,
             members,
-        })
+        };
+        guardians.check_consistent()?;
+        Ok(guardians)
+    }
+
+    /// As chaves de conferência precisam sair de um mesmo polinômio de grau
+    /// `threshold - 1`, e a chave pública precisa ser o valor dele no zero.
+    /// Senão, um arquivo trocado faria a rede selar para outra chave enquanto
+    /// as partes dos guardiões continuam conferindo.
+    pub fn check_consistent(&self) -> Result<(), Error> {
+        let base: BTreeSet<u8> = self
+            .members
+            .keys()
+            .take(usize::from(self.threshold))
+            .copied()
+            .collect();
+        let at = |x: u8| -> RistrettoPoint {
+            base.iter()
+                .map(|index| lagrange_at(x, *index, &base) * self.members[index].verification_key)
+                .sum()
+        };
+
+        if at(0) != self.public_key {
+            return Err(Error::InvalidParams(
+                "a chave pública não sai das chaves de conferência".into(),
+            ));
+        }
+        for (index, member) in &self.members {
+            if !base.contains(index) && at(*index) != member.verification_key {
+                return Err(Error::InvalidParams(format!(
+                    "a chave de conferência do guardião {index} não bate com as outras"
+                )));
+            }
+        }
+        Ok(())
     }
 
     pub fn to_toml_string(&self) -> String {
@@ -550,10 +709,17 @@ mod tests {
         ceremony(3, 5, &names()).unwrap()
     }
 
-    fn partials(ceremony: &Ceremony, sealed: &Sealed, indices: &[u8]) -> Vec<Partial> {
+    fn partials(
+        ceremony: &Ceremony,
+        sealed: &Sealed,
+        context: &[u8],
+        indices: &[u8],
+    ) -> Vec<Partial> {
         indices
             .iter()
-            .map(|index| partial(&ceremony.shares[usize::from(index - 1)], sealed))
+            .map(|index| {
+                partial(&ceremony.shares[usize::from(index - 1)], sealed, context).unwrap()
+            })
             .collect()
     }
 
@@ -570,7 +736,7 @@ mod tests {
             let opened = open(
                 &ceremony.guardians,
                 &sealed,
-                &partials(&ceremony, &sealed, &trio),
+                &partials(&ceremony, &sealed, b"cpf:conta-1", &trio),
                 b"cpf:conta-1",
             );
             assert_eq!(opened.unwrap(), b"52998224725", "trio {trio:?}");
@@ -588,7 +754,7 @@ mod tests {
         let result = open(
             &ceremony.guardians,
             &sealed,
-            &partials(&ceremony, &sealed, &[1, 4]),
+            &partials(&ceremony, &sealed, b"cpf:conta-1", &[1, 4]),
             b"cpf:conta-1",
         );
         assert_eq!(result, Err(Error::NotEnoughPartials { needed: 3, got: 2 }));
@@ -601,7 +767,7 @@ mod tests {
         let result = open(
             &ceremony.guardians,
             &sealed,
-            &partials(&ceremony, &sealed, &[2, 2, 2]),
+            &partials(&ceremony, &sealed, b"ctx", &[2, 2, 2]),
             b"ctx",
         );
         assert_eq!(result, Err(Error::NotEnoughPartials { needed: 3, got: 1 }));
@@ -611,7 +777,7 @@ mod tests {
     fn a_forged_partial_is_refused() {
         let ceremony = setup();
         let sealed = seal(&ceremony.guardians.public_key, b"x", b"ctx");
-        let mut forged = partial(&ceremony.shares[0], &sealed);
+        let mut forged = partial(&ceremony.shares[0], &sealed, b"ctx").unwrap();
         forged.point += G;
 
         assert_eq!(
@@ -625,7 +791,7 @@ mod tests {
         let ceremony = setup();
         let first = seal(&ceremony.guardians.public_key, b"111", b"cpf:a");
         let second = seal(&ceremony.guardians.public_key, b"222", b"cpf:b");
-        let for_first = partials(&ceremony, &first, &[1, 2, 3]);
+        let for_first = partials(&ceremony, &first, b"cpf:a", &[1, 2, 3]);
 
         assert!(open(&ceremony.guardians, &second, &for_first, b"cpf:b").is_err());
     }
@@ -638,13 +804,76 @@ mod tests {
             b"52998224725",
             b"cpf:conta-1",
         );
+
+        // O guardião recusa calcular a parte com o contexto de outra conta.
+        assert_eq!(
+            partial(&ceremony.shares[0], &sealed, b"cpf:conta-2").err(),
+            Some(Error::BadSealed)
+        );
         let result = open(
             &ceremony.guardians,
             &sealed,
-            &partials(&ceremony, &sealed, &[1, 2, 3]),
+            &partials(&ceremony, &sealed, b"cpf:conta-1", &[1, 2, 3]),
             b"cpf:conta-2",
         );
-        assert_eq!(result, Err(Error::DecryptFailed));
+        assert_eq!(result, Err(Error::BadSealed));
+    }
+
+    #[test]
+    fn a_blinded_sealed_from_another_account_is_refused() {
+        // A rede tenta abrir a conta B pedindo a parte para k·R_B, com o
+        // contexto da conta A. Sem conhecer k·r, não há prova que confira.
+        let ceremony = setup();
+        let target = seal(&ceremony.guardians.public_key, b"222", b"cpf:b");
+        let k = Scalar::random(&mut OsRng);
+
+        let blinded = Sealed {
+            ephemeral: k * target.ephemeral,
+            ephemeral_h: k * target.ephemeral_h,
+            challenge: target.challenge,
+            response: k * target.response,
+            nonce: target.nonce,
+            ciphertext: target.ciphertext.clone(),
+        };
+        for context in [&b"cpf:a"[..], &b"cpf:b"[..]] {
+            assert_eq!(
+                partial(&ceremony.shares[0], &blinded, context).err(),
+                Some(Error::BadSealed)
+            );
+        }
+    }
+
+    #[test]
+    fn a_bad_partial_does_not_block_the_others() {
+        let ceremony = setup();
+        let sealed = seal(&ceremony.guardians.public_key, b"52998224725", b"ctx");
+        let mut given = partials(&ceremony, &sealed, b"ctx", &[1, 2, 3, 4]);
+        given[0].point += G;
+
+        let opened = open(&ceremony.guardians, &sealed, &given, b"ctx");
+        assert_eq!(opened.unwrap(), b"52998224725");
+
+        let two_good = &given[..3];
+        assert_eq!(
+            open(&ceremony.guardians, &sealed, two_good, b"ctx"),
+            Err(Error::NotEnoughPartials { needed: 3, got: 2 })
+        );
+    }
+
+    #[test]
+    fn guardians_file_must_hold_together() {
+        let ceremony = setup();
+        let good = ceremony.guardians.to_toml_string();
+
+        let mut other_key = ceremony.guardians.clone();
+        other_key.public_key += G;
+        assert!(Guardians::from_toml_str(&other_key.to_toml_string()).is_err());
+
+        let mut other_member = ceremony.guardians.clone();
+        other_member.members.get_mut(&5).unwrap().verification_key += G;
+        assert!(Guardians::from_toml_str(&other_member.to_toml_string()).is_err());
+
+        assert!(Guardians::from_toml_str(&good).is_ok());
     }
 
     #[test]
@@ -657,7 +886,7 @@ mod tests {
         assert_eq!(Sealed::from_base64(&sealed.to_base64()).unwrap(), sealed);
 
         let share = Share::from_file(&ceremony.shares[2].to_file()).unwrap();
-        let wire = PartialWire::from(&partial(&share, &sealed));
+        let wire = PartialWire::from(&partial(&share, &sealed, b"ctx").unwrap());
         let back = Partial::try_from(&wire).unwrap();
         assert!(verify_partial(&guardians, &sealed, &back).is_ok());
     }

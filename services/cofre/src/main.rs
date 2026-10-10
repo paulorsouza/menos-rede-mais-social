@@ -6,8 +6,10 @@
 //!     desligado da rede e entregue cada fatia ao seu guardião.
 //!
 //! cofre parcial --fatia <fatia.json> --pedido <pedido.json>
-//!     Calcula a parte deste guardião para cada item de um pedido de
-//!     identificação, com a prova de que a conta está certa.
+//!     Confere que cada selado do pedido foi feito para o contexto que está
+//!     nele (a conta da ordem judicial) e calcula a parte deste guardião, com
+//!     a prova de que a conta está certa. Antes, confira na ordem judicial que
+//!     as contas listadas são as da ordem.
 //!
 //! cofre abrir --guardioes <guardioes.toml> --pedido <pedido.json> <parte.json>...
 //!     Confere as partes e abre os itens do pedido.
@@ -90,10 +92,10 @@ fn partial(args: &[String]) -> Result<(), String> {
     let mut partials = BTreeMap::new();
     for item in &order.items {
         let sealed = Sealed::from_base64(&item.sealed).map_err(|e| e.to_string())?;
-        partials.insert(
-            item.key.clone(),
-            PartialWire::from(&cofre::partial(&share, &sealed)),
-        );
+        let partial = cofre::partial(&share, &sealed, item.context.as_bytes())
+            .map_err(|e| format!("{}: {e}", item.key))?;
+        eprintln!("{}\t{}", item.key, item.context);
+        partials.insert(item.key.clone(), PartialWire::from(&partial));
     }
     let out = GuardianPartials {
         order_id: order.order_id,
