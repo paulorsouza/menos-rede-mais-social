@@ -27,9 +27,12 @@
 //! o guardião abriria uma conta achando que abria outra. Com a prova, montar
 //! um selado para `k·R` exige conhecer `k·r`, e quem não selou não conhece.
 //!
-//! Limite assumido na Fase 1: a cerimônia gera a chave inteira num computador
-//! desligado da rede e a apaga em seguida. Antes do piloto, a cerimônia passa
-//! a ser distribuída (DKG), e a chave inteira não existe nem por um instante.
+//! Há duas cerimônias. A da Fase 1 (`ceremony`) gera a chave inteira num
+//! computador desligado da rede e a apaga em seguida; serve para a
+//! demonstração. A do piloto (`dkg`) é distribuída: cada guardião sorteia a
+//! própria parte, e a chave inteira não existe nem por um instante.
+
+pub mod dkg;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -70,6 +73,11 @@ pub enum Error {
     BadProof(u8),
     /// O selado não prova que foi feito para este contexto.
     BadSealed,
+    /// Na cerimônia distribuída, o que um guardião mandou não confere.
+    Complaint {
+        dealer: u8,
+        reason: &'static str,
+    },
     NotEnoughPartials {
         needed: u8,
         got: usize,
@@ -85,6 +93,9 @@ impl std::fmt::Display for Error {
             Error::UnknownGuardian(index) => write!(f, "guardião {index} não existe"),
             Error::BadProof(index) => write!(f, "a parte do guardião {index} não confere"),
             Error::BadSealed => write!(f, "o selado não confere com o contexto do pedido"),
+            Error::Complaint { dealer, reason } => {
+                write!(f, "o guardião {dealer} {reason}; a cerimônia para aqui")
+            }
             Error::NotEnoughPartials { needed, got } => {
                 write!(f, "precisa de {needed} guardiões, chegaram {got}")
             }
