@@ -125,12 +125,12 @@ export const api = {
     ),
 
   /** Um anúncio passou dentro de um vídeo, num ponto que o criador marcou. */
-  adView: (campaignId: number, postId: number, moment: string) =>
-    post<void>('/ads/views', { campaign_id: campaignId, post_id: postId, moment }),
+  adView: (slotId: number, postId: number, moment: string) =>
+    post<void>('/ads/views', { slot_id: slotId, post_id: postId, moment }),
 
-  impression: (campaignId: number, watched: { post_id: number; watched_ms: number }[]) =>
+  impression: (slotId: number, watched: { post_id: number; watched_ms: number }[]) =>
     post<{ revenue_cents: number; splits: Record<string, number> }>('/ads/impressions', {
-      campaign_id: campaignId,
+      slot_id: slotId,
       watched,
     }),
 

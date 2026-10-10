@@ -198,6 +198,8 @@ Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês
 - **Biblioteca pública de anúncios:** anunciante, região, período e valor pago de cada campanha.
 - **Proibido:** propaganda política ou eleitoral. Apostas e governo anunciando a própria gestão são decisões em aberto (proposta: proibir os dois e permitir só campanhas de utilidade pública).
 - **Antifraude:** só conta view de conta verificada pelo gov.br. A mesma pessoa conta uma vez por vídeo por dia, e no máximo dez vezes por criador por dia. O que não conta aparece no extrato, com o motivo. Os limites estão em `params/ads.toml`.
+- **Só conta anúncio que a rede mostrou.** Cada anúncio servido vira uma exibição, com quem viu, a campanha e os posts junto dos quais ele apareceu. O app não escolhe campanha nem shorts. O anúncio dos shorts conta uma vez, e o tempo assistido somado não passa do tempo desde que a rede mostrou o bloco. Quem assiste ao próprio short não entra no rateio dele.
+- **A campanha entrega o que foi pago.** Fora das datas compradas, ou depois de entregar o total comprado, a campanha para de contar.
 - **Moderação de anúncios:** toda campanha passa por uma pessoa da moderação antes de ser cobrada. A recusa cita uma regra pública de anúncio, e quem anuncia não aprova a própria campanha.
 
 ## 7. Arquitetura
@@ -408,7 +410,9 @@ Feito:
 - Entrega no ritmo do dia: o motor só deixa a campanha mostrar a parte do dia que já passou, pelo peso de cada hora, e não deixa um anúncio nacional gastar numa cidade mais do que a parte dela na audiência. Entre as que cabem, sai a mais atrasada.
 - O anúncio dentro do vídeo é registrado no ponto que o criador marcou. É ele que paga o criador, pelas faixas.
 - Anúncio dos shorts dividido pelo tempo assistido, com a parte do fundo separada na hora.
-- Antifraude: só conta view de conta verificada, uma vez por vídeo por pessoa por dia e no máximo dez por criador por dia.
+- Antifraude: só conta view de conta verificada, uma vez por vídeo por pessoa por dia e no máximo dez por criador por dia. Nos shorts, a parte dos criadores de um anúncio visto por conta básica fica com o fundo, e o extrato mostra isso.
+- Só conta anúncio que a rede mostrou: cada um vira uma exibição, que o app devolve ao avisar que o anúncio passou. A campanha só conta dentro das datas compradas e até o total comprado.
+- O mês dos pagamentos é o de Brasília, como o dia do antifraude.
 - Fechamento do mês pelo motor aberto, criador por criador, só com os dados de cada um. As linhas de todos os extratos viram uma árvore de Merkle, e a raiz vai para o registro público. Quem viu um anúncio aparece só por um pseudônimo do mês.
 - Extrato aberto no painel do criador, com o motivo de cada view que não contou, e um arquivo que o verificador confere: ele refaz a conta com o mesmo código e prova cada linha na árvore publicada. Testado de ponta a ponta, e uma view inventada, uma conta básica virando verificada ou um total aumentado são apontados.
 - Repasse por PIX pela fila, para uma chave conferida como sendo do próprio CPF do criador. Saldo abaixo de R$ 1,00 espera o mês seguinte. Quem cadastra a chave depois recebe o que estava esperando.
@@ -421,6 +425,7 @@ Falta:
 - O gov.br da empresa, para confirmar que quem anuncia responde pelo CNPJ. Na demo, basta um CNPJ válido.
 - Chave PIX em CNPJ para criador que recebe como empresa.
 - Devolver ao anunciante o que a campanha não chegou a entregar.
+- O tempo assistido dos shorts ainda vem do app. O servidor limita ao tempo desde a exibição, mas não confere se o vídeo tocou de fato.
 - Auditoria externa de segurança e de pagamentos, e revisão jurídica: são o portão.
 - Anúncio em lives.
 - As decisões de faixas, proporções e destino da diferença (seção 13).

@@ -5,7 +5,7 @@ defmodule RedeSocial.AdsTest do
 
   alias RedeSocial.{Ads, EngineStub, Moderation, Repo, Social}
   alias RedeSocial.Accounts.CNPJ
-  alias RedeSocial.Ads.{AdView, Impression}
+  alias RedeSocial.Ads.{AdSlot, AdView, Impression}
   alias RedeSocial.Payments.BRCode
 
   describe "escolha da campanha" do
@@ -53,7 +53,7 @@ defmodule RedeSocial.AdsTest do
 
       ads = fn viewer ->
         {:ok, feed} = Ads.shorts_feed(viewer, "public_ranking")
-        Enum.count(feed.items, &match?({:ad, _campaign, _ids}, &1))
+        Enum.count(feed.items, &match?({:ad, _campaign, _ids, _slot}, &1))
       end
 
       assert ads.(account_fixture()) == 1
@@ -61,70 +61,221 @@ defmodule RedeSocial.AdsTest do
     end
   end
 
+  # Uma exibição que a rede mostrou, um minuto atrás.
+  defp slot(viewer, campaign, kind, posts, served_at \\ DateTime.add(DateTime.utc_now(), -60)) do
+    Repo.insert!(%AdSlot{
+      viewer_id: viewer.id,
+      campaign_id: campaign.id,
+      kind: kind,
+      post_ids: Enum.map(posts, & &1.id),
+      served_at: DateTime.truncate(served_at, :second)
+    })
+  end
+
+  defp watched(posts, ms), do: Enum.map(posts, &%{"post_id" => &1.id, "watched_ms" => ms})
+
   describe "anúncio dos shorts" do
+    setup do
+      EngineStub.stub()
+      :ok
+    end
+
     test "a parte dos criadores vai pelo tempo assistido e o resto fica com o fundo" do
       big = account_fixture(govbr_level: :ouro)
       bronze = account_fixture(govbr_level: :bronze)
-      first = short_fixture(big)
-      second = short_fixture(bronze)
+      posts = [short_fixture(big), short_fixture(bronze)]
       campaign = campaign_fixture(cents_per_impression: 10)
-      EngineStub.stub()
-
-      watched = [
-        %{"post_id" => first.id, "watched_ms" => 8_000},
-        %{"post_id" => second.id, "watched_ms" => 8_000}
-      ]
 
       viewer = account_fixture(region: "Recife/PE")
-      {:ok, impression} = Ads.record_impression(viewer, campaign.id, watched)
+      slot = slot(viewer, campaign, :shorts, posts)
+      {:ok, impression} = Ads.record_impression(viewer, slot.id, watched(posts, 8_000))
 
       # 55% para os criadores, e a conta bronze não recebe: a parte dela
       # também fica com o fundo.
       assert impression.splits == %{big.id => 5}
       assert impression.fund_cents == 5
       assert impression.viewer_region == "Recife/PE"
+      assert impression.viewer_verified
       assert Ads.shorts_earnings(big, Social.current_month()).total_cents == 5
     end
 
-    test "campanha que ainda não foi paga não entra" do
-      campaign = campaign_fixture(status: :awaiting_payment)
-      short = short_fixture(account_fixture(govbr_level: :ouro))
-      EngineStub.stub()
+    test "o feed devolve a exibição, que conta uma vez só e só para quem viu" do
+      campaign_fixture()
+      creator = account_fixture(govbr_level: :ouro)
+      for _ <- 1..6, do: short_fixture(creator)
+      viewer = account_fixture()
 
-      assert Ads.record_impression(account_fixture(), campaign.id, [
-               %{"post_id" => short.id, "watched_ms" => 1000}
-             ]) == {:error, :not_found}
+      {:ok, feed} = Ads.shorts_feed(viewer, "public_ranking")
+      [{:ad, _campaign, ids, slot_id}] = Enum.filter(feed.items, &(elem(&1, 0) == :ad))
+      watched = Enum.map(ids, &%{"post_id" => &1, "watched_ms" => 0})
+
+      assert Ads.record_impression(account_fixture(), slot_id, watched) == {:error, :not_found}
+      assert {:ok, %Impression{}} = Ads.record_impression(viewer, slot_id, watched)
+      assert Ads.record_impression(viewer, slot_id, watched) == {:error, :already_counted}
+      assert Repo.aggregate(Impression, :count) == 1
+    end
+
+    test "só os shorts da exibição contam, e o tempo cabe no que passou desde ela" do
+      creator = account_fixture(govbr_level: :ouro)
+      [first, second] = posts = [short_fixture(creator), short_fixture(creator)]
+      other = short_fixture(account_fixture(govbr_level: :ouro))
+      campaign = campaign_fixture()
+      viewer = account_fixture()
+
+      # Mostrada há 20 segundos: 600 segundos em cada short não cabem.
+      served = DateTime.add(DateTime.utc_now(), -20)
+      slot = slot(viewer, campaign, :shorts, posts, served)
+
+      {:ok, impression} =
+        Ads.record_impression(viewer, slot.id, watched([first, second, other], 600_000))
+
+      assert Enum.map(impression.breakdown, & &1["post_id"]) == [first.id, second.id]
+      assert impression.breakdown |> Enum.map(& &1["watched_ms"]) |> Enum.sum() <= 26_000
+    end
+
+    test "o próprio short não paga quem assiste" do
+      creator = account_fixture(govbr_level: :ouro)
+      posts = [short_fixture(creator)]
+      campaign = campaign_fixture(cents_per_impression: 10)
+      slot = slot(creator, campaign, :shorts, posts)
+
+      {:ok, impression} = Ads.record_impression(creator, slot.id, watched(posts, 5_000))
+
+      assert impression.splits == %{}
+      assert impression.fund_cents == 10
+    end
+
+    test "com conta básica, a parte dos criadores fica com o fundo" do
+      posts = [short_fixture(account_fixture(govbr_level: :ouro))]
+      campaign = campaign_fixture(cents_per_impression: 10)
+      {:ok, basic} = RedeSocial.Accounts.register_basic(%{nickname: "so_assiste_short"})
+      slot = slot(basic, campaign, :shorts, posts)
+
+      {:ok, impression} = Ads.record_impression(basic, slot.id, watched(posts, 5_000))
+
+      refute impression.viewer_verified
+      assert impression.splits == %{}
+      assert impression.fund_cents == 10
+    end
+
+    test "campanha sem pagamento, fora das datas ou já entregue não conta" do
+      posts = [short_fixture(account_fixture(govbr_level: :ouro))]
+      viewer = account_fixture()
+      yesterday = Date.add(Date.utc_today(), -2)
+
+      for campaign <- [
+            campaign_fixture(status: :awaiting_payment),
+            campaign_fixture(starts_on: Date.add(yesterday, -5), ends_on: yesterday),
+            campaign_fixture(impressions_per_day: 0)
+          ] do
+        slot = slot(viewer, campaign, :shorts, posts)
+
+        assert Ads.record_impression(viewer, slot.id, watched(posts, 1_000)) ==
+                 {:error, :not_found}
+      end
+    end
+
+    test "exibições vencidas são apagadas, e a impressão fica" do
+      posts = [short_fixture(account_fixture(govbr_level: :ouro))]
+      viewer = account_fixture()
+      campaign = campaign_fixture()
+      used = slot(viewer, campaign, :shorts, posts)
+      {:ok, impression} = Ads.record_impression(viewer, used.id, watched(posts, 1_000))
+      _fresh = slot(viewer, campaign, :shorts, posts)
+
+      assert Ads.purge_slots(DateTime.add(DateTime.utc_now(), 7 * 3600)) == 2
+      assert Repo.reload!(impression).slot_id == nil
+    end
+
+    test "exibição velha não conta" do
+      posts = [short_fixture(account_fixture(govbr_level: :ouro))]
+      viewer = account_fixture()
+
+      old =
+        slot(
+          viewer,
+          campaign_fixture(),
+          :shorts,
+          posts,
+          DateTime.add(DateTime.utc_now(), -4 * 3600)
+        )
+
+      assert Ads.record_impression(viewer, old.id, watched(posts, 1_000)) == {:error, :not_found}
     end
   end
 
   describe "anúncio dentro do vídeo" do
     setup do
+      EngineStub.stub()
       creator = account_fixture(govbr_level: :prata)
-      %{creator: creator, video: video_fixture(creator), campaign: campaign_fixture()}
+      video = video_fixture(creator)
+      %{creator: creator, video: video, campaign: campaign_fixture()}
     end
 
     test "conta no ponto que o criador marcou e entra na estimativa do mês", c do
       viewer = account_fixture()
+      slot = slot(viewer, c.campaign, :video, [c.video])
 
-      assert {:ok, %AdView{} = view} =
-               Ads.record_ad_view(viewer, c.campaign.id, c.video.id, "start")
+      assert {:ok, %AdView{} = view} = Ads.record_ad_view(viewer, slot.id, c.video.id, "start")
 
       assert view.creator_id == c.creator.id
       assert view.viewer_verified
       assert view.revenue_cents == 3
       assert Social.monthly_views(c.creator) == 1
+
+      # O mesmo ponto, na mesma exibição, não conta de novo.
+      assert Ads.record_ad_view(viewer, slot.id, c.video.id, "start") ==
+               {:error, :already_counted}
+
+      assert {:ok, %AdView{}} = Ads.record_ad_view(viewer, slot.id, c.video.id, "end")
+      assert Social.monthly_views(c.creator) == 2
     end
 
-    test "fora do ponto marcado, no próprio vídeo ou para menor, não conta", c do
-      assert Ads.record_ad_view(account_fixture(), c.campaign.id, c.video.id, "middle") ==
-               {:error, :not_found}
+    test "o feed de vídeos traz a exibição, que vale só para os vídeos dele", c do
+      viewer = account_fixture()
+      {campaign, slot} = Ads.video_ad(viewer, [c.video.id])
+      assert campaign.id == c.campaign.id
 
-      assert Ads.record_ad_view(c.creator, c.campaign.id, c.video.id, "start") ==
+      other = video_fixture(c.creator)
+      assert Ads.record_ad_view(viewer, slot.id, other.id, "start") == {:error, :not_found}
+      assert {:ok, %AdView{}} = Ads.record_ad_view(viewer, slot.id, c.video.id, "start")
+      assert Ads.video_ad(account_fixture(age_band: :minor), [c.video.id]) == nil
+    end
+
+    test "fora do ponto marcado, no próprio vídeo, para menor ou sem exibição, não conta", c do
+      viewer = account_fixture()
+      minor = account_fixture(age_band: :minor)
+
+      assert Ads.record_ad_view(
+               viewer,
+               slot(viewer, c.campaign, :video, [c.video]).id,
+               c.video.id,
+               "middle"
+             ) ==
                {:error, :not_found}
 
       assert Ads.record_ad_view(
-               account_fixture(age_band: :minor),
-               c.campaign.id,
+               c.creator,
+               slot(c.creator, c.campaign, :video, [c.video]).id,
+               c.video.id,
+               "start"
+             ) ==
+               {:error, :not_found}
+
+      assert Ads.record_ad_view(
+               minor,
+               slot(minor, c.campaign, :video, [c.video]).id,
+               c.video.id,
+               "start"
+             ) ==
+               {:error, :not_found}
+
+      assert Ads.record_ad_view(viewer, nil, c.video.id, "start") == {:error, :not_found}
+
+      # A exibição dos shorts não vale para o vídeo.
+      assert Ads.record_ad_view(
+               viewer,
+               slot(viewer, c.campaign, :shorts, [c.video]).id,
                c.video.id,
                "start"
              ) ==
@@ -135,9 +286,10 @@ defmodule RedeSocial.AdsTest do
 
     test "conta básica fica registrada, mas não entra na estimativa", c do
       {:ok, basic} = RedeSocial.Accounts.register_basic(%{nickname: "so_assiste_video"})
+      slot = slot(basic, c.campaign, :video, [c.video])
 
       assert {:ok, %AdView{viewer_verified: false}} =
-               Ads.record_ad_view(basic, c.campaign.id, c.video.id, "start")
+               Ads.record_ad_view(basic, slot.id, c.video.id, "start")
 
       assert Social.monthly_views(c.creator) == 0
     end
@@ -197,6 +349,10 @@ defmodule RedeSocial.AdsTest do
       {:ok, active} = Ads.confirm_payment(approved.charge_txid, approved.price_cents)
       assert active.status == :active
       assert active.paid_cents == 4800
+
+      # A segunda aprovação não gera outra cobrança.
+      assert Ads.review(moderator_fixture(), campaign, :approve) == {:error, :already_reviewed}
+      assert Repo.reload!(active).charge_txid == approved.charge_txid
     end
 
     test "recusada cita uma regra de anúncio; quem anuncia não aprova a própria", c do

@@ -68,6 +68,8 @@ export interface EngineInfo {
 
 export interface Ad {
   id: number
+  /** A exibição deste anúncio. Só conta anúncio que a rede mostrou. */
+  slot_id: number
   advertiser: string
   title: string
   body: string | null

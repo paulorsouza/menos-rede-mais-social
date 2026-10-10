@@ -6,13 +6,14 @@ defmodule RedeSocialWeb.AdController do
   action_fallback RedeSocialWeb.FallbackController
 
   @doc """
-  O app avisa que um anúncio dos shorts foi visto e manda quanto tempo a pessoa
-  assistiu de cada short do bloco. O rateio é calculado pelo motor.
+  O app avisa que um anúncio dos shorts foi visto (pelo id da exibição que
+  veio no feed) e manda quanto tempo a pessoa assistiu de cada short do bloco.
+  O rateio é calculado pelo motor.
   """
-  def impression(conn, %{"campaign_id" => campaign_id, "watched" => watched})
+  def impression(conn, %{"slot_id" => slot_id, "watched" => watched})
       when is_list(watched) do
     with {:ok, impression} <-
-           Ads.record_impression(conn.assigns.current_account, campaign_id, watched) do
+           Ads.record_impression(conn.assigns.current_account, slot_id, watched) do
       conn
       |> put_status(:created)
       |> json(%{revenue_cents: impression.revenue_cents, splits: impression.splits})
@@ -25,9 +26,9 @@ defmodule RedeSocialWeb.AdController do
   O app avisa que um anúncio passou dentro de um vídeo, num dos pontos que o
   criador marcou. É a base do pagamento por faixas.
   """
-  def view(conn, %{"campaign_id" => campaign_id, "post_id" => post_id, "moment" => moment}) do
+  def view(conn, %{"slot_id" => slot_id, "post_id" => post_id, "moment" => moment}) do
     with {:ok, _view} <-
-           Ads.record_ad_view(conn.assigns.current_account, campaign_id, post_id, moment) do
+           Ads.record_ad_view(conn.assigns.current_account, slot_id, post_id, moment) do
       send_resp(conn, :no_content, "")
     end
   end

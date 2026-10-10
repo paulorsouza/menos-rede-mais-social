@@ -101,7 +101,13 @@ defmodule RedeSocial.EngineStub do
 
         counted = Enum.count(statuses, &(&1 == "counted"))
         video_cents = div(counted * 1100, 1000)
-        shorts_each = Enum.map(month["shorts"], &div(&1["revenue_cents"] * 55, 100))
+
+        shorts_each =
+          Enum.map(
+            month["shorts"],
+            &if(&1["viewer_verified"], do: div(&1["revenue_cents"] * 55, 100), else: 0)
+          )
+
         total = video_cents + Enum.sum(shorts_each) + month["carry_in_cents"]
 
         leaves =

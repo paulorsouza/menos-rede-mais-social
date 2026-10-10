@@ -38,7 +38,7 @@ config :rede_social, :ao_vivo,
   recordings_dir: "priv/gravacoes"
 
 # Fila de trabalhos. A fila `video` converte os vídeos; o Cron apaga os
-# envios abandonados de hora em hora.
+# envios abandonados de hora em hora e as exibições de anúncio vencidas.
 config :rede_social, Oban,
   engine: Oban.Engines.Basic,
   repo: RedeSocial.Repo,
@@ -48,6 +48,8 @@ config :rede_social, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"@hourly", RedeSocial.Uploads.PurgeWorker},
+       # De madrugada, apaga as exibições de anúncio que já não contam.
+       {"0 7 * * *", RedeSocial.Ads.SlotPurgeWorker},
        # Dia 1, às 6h (UTC), fecha o mês anterior e manda os repasses.
        {"0 6 1 * *", RedeSocial.Payments.CloseMonthWorker},
        # No dia 1 de cada trimestre, às 7h (UTC), publica o relatório do anterior.
