@@ -62,10 +62,10 @@ Por enquanto o motor conversa com o backend em JSON, com os mesmos campos dos co
 - **Posts** de texto curto (140 caracteres, sem respostas), foto, vídeo e short, com curtidas, salvamentos e seguidores. É um campo só: o tipo sai do arquivo anexado (vídeo em pé vira short), e não tem tag para escolher.
 - **Vídeo de verdade**: o arquivo sobe enquanto você escreve a legenda e retoma de onde parou se a conexão cair. O vídeo vira HLS com várias qualidades, ganha capa e legenda automática, e o player troca de qualidade conforme a internet. O modo "Economizar dados" segura tudo em 360.
 - **Lives** pelo navegador ou pelo OBS. Quando acabam, a gravação vira vídeo comum.
-- **Shorts** com um anúncio a cada 6. A receita é dividida entre os criadores do bloco, pelo tempo assistido, e a tela mostra o rateio na hora.
+- **Shorts** com um anúncio a cada 6. A parte dos criadores é dividida entre os do bloco, pelo tempo assistido, e a tela mostra o rateio na hora.
 - **Vídeos** com anúncio só nos pontos que o criador escolheu. Quem é bronze não monetiza.
-- **Anúncio regional**, mais barato, para quem é da mesma cidade do anunciante.
-- **Painel do criador** com o pagamento por faixas decrescentes, calculado como no imposto de renda.
+- **Anunciar**: a empresa monta a campanha (no país todo ou numa cidade) com o preço da tabela pública, a moderação aprova, a cobrança vai por PIX e o motor espalha as exibições ao longo do dia.
+- **Pagamento dos criadores**: o mês fecha no dia 1º pelo motor aberto, com regras contra fraude, faixas decrescentes como no imposto de renda e repasse por PIX. Cada criador baixa o extrato e confere a conta no verificador.
 - **Transparência**: versão do motor, hash e conteúdo dos parâmetros em uso, números da rede, biblioteca pública de anúncios e quanto custa uma hora de vídeo.
 
 O que ainda é simulado ou não existe está listado no fim do [roteiro da demonstração](docs/demo.md#o-que-é-real-e-o-que-é-simulado).
@@ -94,7 +94,7 @@ Mais detalhes do backend, inclusive como rodar os testes, estão em [apps/backen
 
 ## Conferir sem confiar na rede
 
-A rede foi feita para ser conferida por quem não confia nela. Três coisas dá para conferir hoje, do seu computador.
+A rede foi feita para ser conferida por quem não confia nela. Quatro coisas dá para conferir hoje, do seu computador.
 
 **O binário do motor sai do código publicado.** Com Nix, compile duas vezes; a segunda recompila do zero e para com erro se um único byte mudar. O hash do binário é o mesmo para qualquer pessoa, e a CI assina os binários da `main` com o Sigstore.
 
@@ -109,6 +109,12 @@ sha256sum result/bin/engine-server
 ```bash
 cd services
 cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json
+```
+
+**O seu pagamento seguiu a fórmula.** No painel do criador, abra um mês em "Extratos" e baixe o arquivo. O verificador refaz o fechamento com o código do motor de anúncios e confere que cada linha está na árvore publicada no registro.
+
+```bash
+cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json
 ```
 
 **O registro público não foi reescrito.** Baixe o cabeçalho e as entradas na página de transparência (ou em `/api/registro` e `/api/registro/entradas`). Guarde o cabeçalho; da próxima vez, a prova de consistência mostra que nada do que estava nele foi trocado ou apagado.

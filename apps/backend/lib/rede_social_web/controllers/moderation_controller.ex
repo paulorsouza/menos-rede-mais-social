@@ -5,7 +5,8 @@ defmodule RedeSocialWeb.ModerationController do
   """
   use RedeSocialWeb, :controller
 
-  alias RedeSocial.{Moderation, Social}
+  alias RedeSocial.{Ads, Moderation, Repo, Social}
+  alias RedeSocial.Ads.Campaign
   alias RedeSocial.Moderation.Rules
   alias RedeSocialWeb.Present
 
@@ -16,8 +17,27 @@ defmodule RedeSocialWeb.ModerationController do
   def queue(conn, _params) do
     json(conn, %{
       reports: Enum.map(Moderation.queue(), &Present.queue_entry/1),
-      appeals: Enum.map(Moderation.pending_appeals(), &Present.appeal/1)
+      appeals: Enum.map(Moderation.pending_appeals(), &Present.appeal/1),
+      campaigns: Enum.map(Ads.pending_campaigns(), &Present.own_campaign/1),
+      ad_rules: Ads.Rules.all()
     })
+  end
+
+  @doc "Aprova uma campanha: a rede gera a cobrança por PIX para o anunciante."
+  def approve_campaign(conn, %{"id" => id}) do
+    with %Campaign{} = campaign <- Repo.get(Campaign, id),
+         {:ok, _campaign} <- Ads.review(conn.assigns.current_account, campaign, :approve) do
+      json(conn, %{ok: true})
+    end
+  end
+
+  @doc "Recusa uma campanha citando uma das regras de anúncio."
+  def reject_campaign(conn, %{"id" => id} = params) do
+    with %Campaign{} = campaign <- Repo.get(Campaign, id),
+         {:ok, _campaign} <-
+           Ads.review(conn.assigns.current_account, campaign, {:reject, rule(params)}) do
+      json(conn, %{ok: true})
+    end
   end
 
   def remove(conn, %{"id" => id} = params) do

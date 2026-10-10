@@ -33,7 +33,9 @@ defmodule RedeSocialWeb.Present do
       can_go_live: Accounts.verified?(account) and not Accounts.minor?(account),
       moderator: account.moderator,
       legal_officer: account.legal_officer,
-      unread_notices: Moderation.unread_count(account)
+      unread_notices: Moderation.unread_count(account),
+      # Na demonstração, botões que fazem o papel do banco e do gov.br.
+      demo: RedeSocial.Demo.enabled?()
     })
   end
 
@@ -123,15 +125,98 @@ defmodule RedeSocialWeb.Present do
 
   @doc "Para a biblioteca pública de anúncios: inclui período, horas e valor pago."
   def campaign_record(campaign) do
+    advertiser = campaign.advertiser_record
+
     campaign
     |> campaign()
     |> Map.merge(%{
+      cnpj: advertiser && RedeSocial.Accounts.CNPJ.format(advertiser.cnpj),
       hours_per_day: campaign.hours_per_day,
       cents_per_impression: campaign.cents_per_impression,
       paid_cents: campaign.paid_cents,
+      delivered: campaign.delivered,
       starts_on: campaign.starts_on,
       ends_on: campaign.ends_on
     })
+  end
+
+  def advertiser(advertiser) do
+    %{
+      id: advertiser.id,
+      name: advertiser.name,
+      cnpj: RedeSocial.Accounts.CNPJ.format(advertiser.cnpj)
+    }
+  end
+
+  @doc "Uma campanha para quem anunciou e para a moderação: situação, preço e cobrança."
+  def own_campaign(campaign) do
+    campaign
+    |> campaign()
+    |> Map.merge(%{
+      status: campaign.status,
+      hours_per_day: campaign.hours_per_day,
+      impressions_per_day: campaign.impressions_per_day,
+      cents_per_impression: campaign.cents_per_impression,
+      price_cents: campaign.price_cents,
+      paid_cents: campaign.paid_cents,
+      starts_on: campaign.starts_on,
+      ends_on: campaign.ends_on,
+      rejection_rule:
+        campaign.rejection_rule && RedeSocial.Ads.Rules.get(campaign.rejection_rule),
+      brcode: if(campaign.status == :awaiting_payment, do: campaign.brcode),
+      charge_txid: if(campaign.status == :awaiting_payment, do: campaign.charge_txid)
+    })
+  end
+
+  @doc "Um extrato fechado, para ler na tela."
+  def statement(%{payout: payout, month: month}) do
+    input = payout.input
+    result = payout.result
+
+    views =
+      input["video_views"]
+      |> Enum.zip(result["statuses"])
+      |> Enum.map(fn {view, status} ->
+        %{post_id: view["post"], regional: view["regional"], at: view["at"], status: status}
+      end)
+
+    %{
+      month: Calendar.strftime(month.month, "%Y-%m"),
+      national_views: result["national_views"],
+      regional_views: result["regional_views"],
+      discarded_views: result["discarded_views"],
+      discarded_by_reason:
+        views |> Enum.reject(&(&1.status == "counted")) |> Enum.frequencies_by(& &1.status),
+      by_post:
+        views
+        |> Enum.filter(&(&1.status == "counted"))
+        |> Enum.frequencies_by(& &1.post_id)
+        |> Enum.map(fn {post_id, count} -> %{post_id: post_id, views: count} end)
+        |> Enum.sort_by(& &1.views, :desc),
+      weighted_views: result["weighted_views"],
+      effective_views: result["effective_views"],
+      video_cents: result["video_cents"],
+      shorts:
+        Enum.zip_with(input["shorts"], result["shorts_cents_each"], fn impression, cents ->
+          %{
+            id: impression["id"],
+            at: impression["at"],
+            revenue_cents: impression["revenue_cents"],
+            my_cents: cents
+          }
+        end),
+      shorts_cents: result["shorts_cents"],
+      carry_in_cents: result["carry_in_cents"],
+      total_cents: result["total_cents"],
+      payable: result["payable"],
+      status: payout.status,
+      pix_key_hint: payout.pix_key_hint,
+      pix_e2e_id: payout.pix_e2e_id,
+      paid_at: payout.paid_at,
+      root: Base.encode16(month.root, case: :lower),
+      registro_position: month.registro_position,
+      lines: length(result["leaves"])
+    }
   end
 
   def errors(%Ecto.Changeset{} = changeset) do

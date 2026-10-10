@@ -33,6 +33,35 @@ defmodule RedeSocial.Fixtures do
     |> Repo.preload(:author)
   end
 
+  def campaign_fixture(attrs \\ %{}) do
+    attrs =
+      Enum.into(attrs, %{
+        advertiser: "Anunciante de Teste",
+        title: "Teste",
+        scope: :national,
+        hours_per_day: 1,
+        impressions_per_day: 240,
+        cents_per_impression: 3,
+        paid_cents: 0,
+        status: :active,
+        starts_on: Date.add(Date.utc_today(), -30),
+        ends_on: Date.add(Date.utc_today(), 30)
+      })
+
+    Repo.insert!(struct(RedeSocial.Ads.Campaign, attrs))
+  end
+
+  def video_fixture(author, attrs \\ %{}) do
+    post_fixture(
+      author,
+      Enum.into(attrs, %{
+        kind: :video,
+        media_path: "/media/v/teste/master.m3u8",
+        ad_markers: ["start", "end"]
+      })
+    )
+  end
+
   def short_fixture(author, attrs \\ %{}) do
     post_fixture(
       author,

@@ -26,6 +26,68 @@ defmodule RedeSocialWeb.FallbackController do
     error(conn, :unprocessable_entity, "Formato de arquivo não aceito.")
   end
 
+  def call(conn, {:error, %{} = field_errors}) when not is_struct(field_errors) do
+    conn |> put_status(:unprocessable_entity) |> json(%{errors: field_errors})
+  end
+
+  def call(conn, {:error, :pix_key_not_yours}) do
+    error(conn, :unprocessable_entity, "Essa chave PIX não está no seu CPF. Use uma chave sua.")
+  end
+
+  def call(conn, {:error, :pix_key_not_found}) do
+    error(conn, :unprocessable_entity, "Essa chave não existe no PIX.")
+  end
+
+  def call(conn, {:error, :cpf_pix_key}) do
+    error(
+      conn,
+      :unprocessable_entity,
+      "Use e-mail, celular ou chave aleatória. O CPF como chave faria a rede guardar o seu CPF."
+    )
+  end
+
+  def call(conn, {:error, :invalid_pix_key}) do
+    error(
+      conn,
+      :unprocessable_entity,
+      "Chave PIX inválida: use e-mail, celular ou chave aleatória."
+    )
+  end
+
+  def call(conn, {:error, :invalid_cnpj}) do
+    conn |> put_status(:unprocessable_entity) |> json(%{errors: %{cnpj: ["CNPJ inválido"]}})
+  end
+
+  def call(conn, {:error, :invalid_name}) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{errors: %{name: ["Escreva o nome da empresa"]}})
+  end
+
+  def call(conn, {:error, :cnpj_taken}) do
+    error(conn, :conflict, "Este CNPJ já anuncia por outra conta.")
+  end
+
+  def call(conn, {:error, :already_advertiser}) do
+    error(conn, :conflict, "Esta conta já tem uma empresa cadastrada.")
+  end
+
+  def call(conn, {:error, :not_advertiser}) do
+    error(conn, :forbidden, "Cadastre a empresa antes de criar uma campanha.")
+  end
+
+  def call(conn, {:error, :invalid_campaign}) do
+    error(conn, :unprocessable_entity, "Confira as horas por dia e as datas da campanha.")
+  end
+
+  def call(conn, {:error, :own_campaign}) do
+    error(conn, :forbidden, "Quem anuncia não aprova a própria campanha.")
+  end
+
+  def call(conn, {:error, :already_reviewed}) do
+    error(conn, :conflict, "Esta campanha já foi analisada.")
+  end
+
   def call(conn, {:error, :minor_live}) do
     error(conn, :forbidden, "Contas de menores de idade não fazem live.")
   end

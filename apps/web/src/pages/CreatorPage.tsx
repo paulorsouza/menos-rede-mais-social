@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { api } from '../api'
 import { PageHead } from '../components/Layout'
+import { PixKeyCard, Statements } from '../components/Payouts'
 import { InfoTip } from '../components/Popover'
 import { ErrorState, Loading } from '../components/States'
 import { formatCompact, formatMoney, formatNumber, monthName, timeAgo } from '../format'
@@ -39,12 +40,14 @@ export function CreatorPage() {
   const [error, setError] = useState<string | null>(null)
   const [showMath, setShowMath] = useState(false)
 
-  useEffect(() => {
+  function load() {
     api
       .dashboard()
       .then(setData)
       .catch((e: Error) => setError(e.message))
-  }, [])
+  }
+
+  useEffect(load, [])
 
   if (error) return <div className="page"><ErrorState message={error} /></div>
   if (!data) return <div className="page"><Loading /></div>
@@ -56,16 +59,18 @@ export function CreatorPage() {
     <div className="page">
       <PageHead title="Criador">
         <InfoTip label="Sobre os valores">
-          O valor por view cai conforme o criador cresce, para abrir espaço para quem está começando. Cada faixa vale só
-          para as views dentro dela, então crescer nunca diminui o total. Faixas e valor base são ilustrativos.
+          Conta a view em que o anúncio passou. O valor por view cai conforme o criador cresce, para abrir espaço para
+          quem está começando, e cada faixa vale só para as views dentro dela: crescer nunca diminui o total. O número
+          do mês é uma estimativa; a conta de verdade sai no fechamento, com as regras do antifraude. Os valores de
+          params/ads.toml são ilustrativos.
         </InfoTip>
       </PageHead>
 
       <section className="hero-number">
-        <span className="hero-label">{monthName(data.month)}</span>
+        <span className="hero-label">{monthName(data.month)} · estimativa</span>
         <strong>{formatMoney(data.payout_cents)}</strong>
         <span className="hero-sub">
-          {formatNumber(data.views)} views · {formatNumber(data.effective_views)} pagas
+          {formatNumber(data.views)} views com anúncio · {formatNumber(data.effective_views)} pagas
         </span>
         {!data.monetizable && <span className="badge badge-warning">gov.br bronze não recebe</span>}
       </section>
@@ -132,6 +137,9 @@ export function CreatorPage() {
           ))}
         </ul>
       )}
+
+      {data.monetizable && <PixKeyCard dashboard={data} onSaved={load} />}
+      <Statements statements={data.statements} />
     </div>
   )
 }

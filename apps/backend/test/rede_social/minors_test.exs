@@ -3,7 +3,7 @@ defmodule RedeSocial.MinorsTest do
 
   import RedeSocial.Fixtures
 
-  alias RedeSocial.{Accounts, Ads, Engine, Social}
+  alias RedeSocial.{Accounts, Ads, Social}
   alias RedeSocial.Ads.Campaign
 
   setup do
@@ -66,17 +66,7 @@ defmodule RedeSocial.MinorsTest do
       creator = account_fixture(govbr_level: :ouro)
       for _ <- 1..6, do: short_fixture(creator)
 
-      # O motor devolve os candidatos na ordem em que chegaram.
-      Req.Test.stub(Engine, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        candidates = (body != "" && Jason.decode!(body)["candidates"]) || []
-
-        Req.Test.json(conn, %{
-          "items" =>
-            Enum.map(candidates, &%{"post_id" => &1["post_id"], "score" => 1, "reasons" => []}),
-          "shorts_ad_every" => 6
-        })
-      end)
+      RedeSocial.EngineStub.stub()
 
       ads = fn viewer ->
         {:ok, feed} = Ads.shorts_feed(viewer, "public_ranking")

@@ -1,6 +1,11 @@
 import type { FeedMode } from './feedModes'
 import type {
+  AdRule,
+  Advertiser,
   AppealItem,
+  CampaignQuote,
+  OwnCampaign,
+  Statement,
   Dashboard,
   IdentificationOrder,
   FeedResponse,
@@ -119,6 +124,10 @@ export const api = {
       `/accounts/${encodeURIComponent(nickname)}/follow`,
     ),
 
+  /** Um anúncio passou dentro de um vídeo, num ponto que o criador marcou. */
+  adView: (campaignId: number, postId: number, moment: string) =>
+    post<void>('/ads/views', { campaign_id: campaignId, post_id: postId, moment }),
+
   impression: (campaignId: number, watched: { post_id: number; watched_ms: number }[]) =>
     post<{ revenue_cents: number; splits: Record<string, number> }>('/ads/impressions', {
       campaign_id: campaignId,
@@ -132,7 +141,12 @@ export const api = {
   deleteAccount: (nickname: string) =>
     request<{ ok: true }>('/me', { method: 'DELETE', body: JSON.stringify({ nickname }) }),
   readNotices: () => post<{ ok: true }>('/me/notices/read'),
-  moderationQueue: () => request<{ reports: QueueEntry[]; appeals: AppealItem[] }>('/moderation/queue'),
+  moderationQueue: () =>
+    request<{ reports: QueueEntry[]; appeals: AppealItem[]; campaigns: OwnCampaign[]; ad_rules: AdRule[] }>(
+      '/moderation/queue',
+    ),
+  approveCampaign: (id: number) => post<{ ok: true }>(`/moderation/campaigns/${id}/approve`),
+  rejectCampaign: (id: number, rule: number) => post<{ ok: true }>(`/moderation/campaigns/${id}/reject`, { rule }),
   removePost: (postId: number, rule: number) => post<{ ok: true }>(`/moderation/posts/${postId}/remove`, { rule }),
   keepPost: (postId: number) => post<{ ok: true }>(`/moderation/posts/${postId}/keep`),
   decideAppeal: (appealId: number, outcome: 'restore' | 'uphold') =>
@@ -147,6 +161,18 @@ export const api = {
     post<{ result: OpenedOrder; order: IdentificationOrder }>(`/identification/orders/${orderId}/open`),
 
   dashboard: () => request<Dashboard>('/creator/dashboard'),
+  setPixKey: (key: string) => post<{ pix_key: { kind: string; hint: string } }>('/creator/pix', { key }),
+  statement: (month: string) => request<{ statement: Statement }>(`/creator/statements/${month}`),
+
+  advertiser: () => request<{ advertiser: Advertiser | null; campaigns: OwnCampaign[] }>('/anunciante'),
+  registerAdvertiser: (cnpj: string, name: string) =>
+    post<{ advertiser: Advertiser }>('/anunciante', { cnpj, name }),
+  quoteCampaign: (campaign: Record<string, string>) =>
+    post<{ quote: CampaignQuote }>('/anunciante/orcamento', campaign),
+  createCampaign: (campaign: Record<string, string>) =>
+    post<{ campaign: OwnCampaign }>('/anunciante/campanhas', campaign),
+  testCnpj: () => request<{ cnpj: string }>('/demo/cnpj-de-teste'),
+  payCharge: (txid: string) => post<{ ok: true }>(`/demo/pix/${txid}/pagar`),
   transparency: () => request<TransparencyReport>('/transparency'),
   registro: () => request<Registro>('/registro'),
 }

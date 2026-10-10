@@ -18,7 +18,7 @@ A demonstração foi construída na frente das fases, tocando partes da 1 à 4, 
 | 1 · Protótipo | Pronta na demo, com o gov.br de homologação já integrado. Faltam as credenciais do gov.br, uma fonte confiável de idade e o grupo de teste |
 | 2 · Algoritmos e transparência | Feed conferível de ponta a ponta: registro público, recibo assinado, retratos do grafo, verificador aberto e build reproduzível. Faltam escala, gRPC e alguém de fora fazer o caminho todo |
 | 3 · Vídeo | Vídeo em HLS, envio que retoma, legendas automáticas, lives e custo por hora medido. Faltam o orçamento que fecha o portão e uma CDN de verdade |
-| 4 · Anúncios e pagamentos | Regras do dinheiro prontas no motor. Faltam venda de campanhas, cobrança, PIX e auditoria |
+| 4 · Anúncios e pagamentos | Compra de campanha com PIX, entrega no ritmo do dia, fechamento do mês pelo motor, extrato conferível e repasse por PIX. Faltam o banco de verdade, a auditoria externa e a revisão jurídica |
 | 5 · Piloto | Depende de alguém levar a ideia adiante |
 
 O detalhe de cada fase está na [seção 11](#11-roadmap-e-situação-atual).
@@ -166,9 +166,10 @@ Só vídeos e shorts têm anúncio. O criador decide se quer anúncio, e toda a 
 
 ### Anúncio nacional
 
-- A empresa compra horas de exibição por dia. Exemplo: 10.000 horas por dia de um anúncio de 30 segundos equivalem a 1,2 milhão de exibições.
-- O motor de anúncios espalha essas exibições ao longo do dia e pelo país, proporcional à audiência de cada região.
-- O criador recebe por view, e o valor cai por faixas conforme ele cresce. A faixa vale só para as views dentro dela, como no imposto de renda. Assim, crescer nunca diminui o ganho total.
+- A empresa compra horas de exibição por dia. Exemplo: 10.000 horas por dia de um anúncio de 15 segundos equivalem a 2,4 milhões de exibições.
+- O preço de cada exibição é tabelado em `params/ads.toml`, igual para todo anunciante. Não tem leilão nem segmentação por perfil.
+- O motor de anúncios espalha essas exibições ao longo do dia, pelo peso de cada hora, e pelo país: um anúncio nacional não gasta numa cidade mais do que a parte dela na audiência do dia.
+- O criador recebe por view em que o anúncio passou, e o valor cai por faixas conforme ele cresce. A faixa vale só para as views dentro dela, como no imposto de renda. Assim, crescer nunca diminui o ganho total.
 
 | Views do criador no mês | Valor por view (% do valor base) |
 | --- | --- |
@@ -187,15 +188,17 @@ Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês
 
 ### Divisão e pagamento
 
-- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. A proporção está em aberto.
-- O fechamento é mensal, com repasse por PIX para a chave no CPF ou CNPJ do criador.
-- Cada criador tem um extrato aberto: views por vídeo, faixa aplicada e rateio dos shorts. O cálculo pode ser verificado por qualquer pessoa (seção 9).
+- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Nos valores ilustrativos de hoje, quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; a proporção final é decisão em aberto.
+- O fechamento é mensal, no dia 1º, com repasse por PIX. Abaixo de R$ 1,00 o saldo espera o mês seguinte, porque um PIX de centavos custa mais do que vale.
+- A chave PIX precisa estar no CPF do próprio criador. O banco diz de quem é a chave, e a rede confere pela impressão digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF.
+- Cada criador tem um extrato aberto: views com anúncio por vídeo, as que não contaram e por quê, a faixa aplicada e a parte de cada anúncio dos shorts. O cálculo pode ser verificado por qualquer pessoa (seção 9).
 
 ### Regras para anunciantes
 
 - **Biblioteca pública de anúncios:** anunciante, região, período e valor pago de cada campanha.
 - **Proibido:** propaganda política ou eleitoral. Apostas e governo anunciando a própria gestão são decisões em aberto (proposta: proibir os dois e permitir só campanhas de utilidade pública).
-- **Antifraude:** só conta view de conta logada com tempo mínimo assistido. Como cada conta é uma pessoa, fica bem mais difícil usar bots.
+- **Antifraude:** só conta view de conta verificada pelo gov.br. A mesma pessoa conta uma vez por vídeo por dia, e no máximo dez vezes por criador por dia. O que não conta aparece no extrato, com o motivo. Os limites estão em `params/ads.toml`.
+- **Moderação de anúncios:** toda campanha passa por uma pessoa da moderação antes de ser cobrada. A recusa cita uma regra pública de anúncio, e quem anuncia não aprova a própria campanha.
 
 ## 7. Arquitetura
 
@@ -268,7 +271,7 @@ Qualquer pessoa precisa conseguir provar três coisas: que o código em produç�
 | Atestação remota | Máquinas confidenciais com AMD SEV-SNP ou Intel TDX | Qual binário está rodando agora em cada servidor, assinado pelo próprio processador |
 | Verificador aberto | Ferramenta de linha de comando + página pública de atestações | Qualquer pessoa compara a atestação com o log, sem pedir licença |
 | Compromisso dos dados | Raiz Merkle diária dos sinais de ranking e das views, publicada no log | Que os dados usados no feed e nos pagamentos não foram alterados depois |
-| Provas de pagamento | zkVM (RISC Zero ou SP1) | Que o rateio mensal de anúncios seguiu a fórmula publicada |
+| Provas de pagamento | Árvore de Merkle do fechamento + verificador (zkVM no futuro) | Que o rateio mensal de anúncios seguiu a fórmula publicada |
 
 O modelo de referência é o Private Cloud Compute da Apple, que publica as imagens dos servidores num log e deixa pesquisadores conferirem a atestação.
 
@@ -277,7 +280,8 @@ Limites assumidos:
 - **Confiança no fabricante do chip.** A atestação depende de AMD ou Intel. Mitigação: usar os dois fornecedores e ter verificadores independentes.
 - **Código não prova intenção sobre dados.** Por isso os compromissos diários e a ferramenta que refaz o cálculo do feed de um usuário a partir dos dados comprometidos.
 - **O retrato prova o passado, não o presente.** O que a pessoa fez depois do último retrato aparece na conta do feed como "recente", sem prova ainda. Quanto mais frequentes os retratos, menor essa janela.
-- **Provas criptográficas custam caro.** Elas ficam para os pagamentos mensais. O feed em tempo real usa atestação e reexecução por amostragem.
+- **Provas criptográficas custam caro.** Por enquanto, a prova dos pagamentos é a reexecução: cada criador refaz o próprio fechamento no verificador, com as linhas provadas na árvore publicada. Uma prova de conhecimento zero (zkVM) entra se for preciso provar o fechamento inteiro sem mostrar os dados de ninguém.
+- **A prova cobre a conta, não a origem das views.** O verificador mostra que a fórmula foi seguida com as linhas publicadas; que cada view veio de uma pessoa de verdade depende do gov.br e do antifraude.
 
 ## 10. Governança
 
@@ -399,20 +403,25 @@ Portão: auditoria externa de segurança e de pagamentos e revisão jurídica ap
 
 Feito:
 
-- Motor de anúncios em Rust. Horas por dia viram exibições, a view é paga por faixas decrescentes como no imposto de renda, e o anúncio dos shorts é dividido pelo tempo assistido.
-- Anúncio nacional e regional, com o regional aparecendo só para quem é da mesma cidade.
-- Um anúncio a cada 6 shorts, e pontos de anúncio escolhidos pelo criador em cada vídeo.
-- Só gov.br prata ou ouro recebe. A view só conta a partir de 2 segundos e nunca a do próprio criador.
-- Painel do criador com o pagamento estimado do mês e a faixa em que ele está.
-- Biblioteca pública de anúncios na página de transparência.
+- Compra de campanha pela empresa, com CNPJ, que aparece na biblioteca pública de anúncios. O preço sai da tabela pública de `params/ads.toml` e aparece na hora, enquanto a campanha é montada.
+- Toda campanha passa pela moderação antes de ser cobrada, com regras públicas de anúncio. Aprovada, recebe uma cobrança PIX (copia e cola, no padrão do Banco Central); paga, entra no ar nas datas compradas.
+- Entrega no ritmo do dia: o motor só deixa a campanha mostrar a parte do dia que já passou, pelo peso de cada hora, e não deixa um anúncio nacional gastar numa cidade mais do que a parte dela na audiência. Entre as que cabem, sai a mais atrasada.
+- O anúncio dentro do vídeo é registrado no ponto que o criador marcou. É ele que paga o criador, pelas faixas.
+- Anúncio dos shorts dividido pelo tempo assistido, com a parte do fundo separada na hora.
+- Antifraude: só conta view de conta verificada, uma vez por vídeo por pessoa por dia e no máximo dez por criador por dia.
+- Fechamento do mês pelo motor aberto, criador por criador, só com os dados de cada um. As linhas de todos os extratos viram uma árvore de Merkle, e a raiz vai para o registro público. Quem viu um anúncio aparece só por um pseudônimo do mês.
+- Extrato aberto no painel do criador, com o motivo de cada view que não contou, e um arquivo que o verificador confere: ele refaz a conta com o mesmo código e prova cada linha na árvore publicada. Testado de ponta a ponta, e uma view inventada, uma conta básica virando verificada ou um total aumentado são apontados.
+- Repasse por PIX pela fila, para uma chave conferida como sendo do próprio CPF do criador. Saldo abaixo de R$ 1,00 espera o mês seguinte. Quem cadastra a chave depois recebe o que estava esperando.
+- Contas abertas na transparência: em cada mês fechado, quanto entrou de anúncio, quanto foi para os criadores e quanto ficou com o fundo.
+- Painel do criador com a estimativa do mês, a faixa e os extratos fechados.
 
 Falta:
 
-- Anunciante comprando campanha com o gov.br da empresa.
-- Entrega das exibições espalhada ao longo do dia e pelo país.
-- Cobrança, fechamento mensal e repasse por PIX.
-- Extrato aberto por vídeo e provas mensais de pagamento.
-- Antifraude além do básico.
+- Um banco de verdade (PSP), com o diretório de chaves, a cobrança e o repasse. Na demo, um banco simulado faz esse papel.
+- O gov.br da empresa, para confirmar que quem anuncia responde pelo CNPJ. Na demo, basta um CNPJ válido.
+- Chave PIX em CNPJ para criador que recebe como empresa.
+- Devolver ao anunciante o que a campanha não chegou a entregar.
+- Auditoria externa de segurança e de pagamentos, e revisão jurídica: são o portão.
 - Anúncio em lives.
 - As decisões de faixas, proporções e destino da diferença (seção 13).
 
@@ -469,6 +478,10 @@ Já decidido:
 - [x] Vídeo em HLS (H.264 e AAC), com os degraus de qualidade em `params/video.toml`. O original não fica guardado: guardar custa, e os degraus bastam
 - [x] Legendas automáticas com o whisper.cpp rodando dentro da rede, sem mandar áudio para fora
 - [x] Menor de idade não faz live
+- [x] Preço por exibição tabelado e público, sem leilão nem segmentação por perfil
+- [x] Só conta para pagamento a view de conta verificada pelo gov.br, com limites por pessoa
+- [x] Chave PIX no CPF do criador, conferida pela impressão digital; CPF como chave não vale
+- [x] Saldo abaixo de R$ 1,00 espera o mês seguinte
 
 Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
 
@@ -483,7 +496,8 @@ Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem espe
 - [ ] Orçamento por hora de vídeo, que fecha o portão da Fase 3
 - [ ] Faixas e percentuais do pagamento decrescente
 - [ ] Destino da diferença das faixas: fundo de infraestrutura ou bônus para criadores pequenos
-- [ ] Proporção da receita entre criador e fundo de infraestrutura
+- [ ] Proporção da receita entre criador e fundo de infraestrutura (hoje, 55% ilustrativo)
+- [ ] Devolução ao anunciante do que a campanha não entregou
 - [ ] Anúncio regional por município ou por estado
 - [ ] Apostas e publicidade de governo como anunciantes
 - [ ] Forma jurídica da entidade gestora

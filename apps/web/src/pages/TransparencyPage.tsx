@@ -4,7 +4,7 @@ import { api } from '../api'
 import { PageHead } from '../components/Layout'
 import { InfoTip } from '../components/Popover'
 import { ErrorState, Loading } from '../components/States'
-import { formatCompact, formatDate, formatMoney } from '../format'
+import { formatCompact, formatDate, formatMoney, formatNumber, monthName } from '../format'
 import { REPO_URL, RULES_URL } from '../links'
 import type { ParamsFile, Registro, TransparencyReport, VideoCosts } from '../types'
 
@@ -74,6 +74,7 @@ export function TransparencyPage() {
       </section>
 
       <RegistroSection />
+      <OpenAccounts report={report} />
       <VideoCostSection costs={report.video.costs} />
       <ParamsCard file={report.video.params} title="Vídeo" />
       <Rules report={report} />
@@ -87,7 +88,10 @@ export function TransparencyPage() {
               <span className="ad-dot" style={{ background: ad.color ?? undefined }} />
               <span className="ad-list-name">
                 {ad.advertiser}
-                <small>{ad.scope === 'regional' ? ad.region : 'Nacional'}</small>
+                <small>
+                  {ad.scope === 'regional' ? ad.region : 'Nacional'}
+                  {ad.cnpj && ` · CNPJ ${ad.cnpj}`} · {formatNumber(ad.delivered)} exibições
+                </small>
               </span>
               <strong>{formatMoney(ad.paid_cents)}</strong>
             </li>
@@ -111,6 +115,7 @@ const KIND_LABEL: Record<string, string> = {
   motor: 'Versão do motor',
   'raiz-dados': 'Retrato do grafo',
   identificacao: 'Ordem judicial aberta',
+  fechamento: 'Fechamento do mês',
 }
 
 /** Uma linha curta para cada entrada, a partir do texto exato publicado. */
@@ -120,6 +125,8 @@ function describe(kind: string, data: string) {
     if (kind === 'motor') return `v${payload.versao} · feed ${String(payload.feed_sha256).slice(0, 8)}…`
     if (kind === 'raiz-dados') return `${payload.ligacoes} ligações · raiz ${String(payload.raiz).slice(0, 8)}…`
     if (kind === 'identificacao') return payload.sigiloso ? 'Processo sigiloso' : payload.juizo
+    if (kind === 'fechamento')
+      return `${monthName(`${payload.mes}-01`)} · ${payload.linhas} linhas · raiz ${String(payload.raiz).slice(0, 8)}…`
   } catch {
     // Entrada de um tipo novo: mostra só o tipo.
   }
@@ -173,6 +180,46 @@ function RegistroSection() {
           Baixar as entradas
         </a>
       </nav>
+    </section>
+  )
+}
+
+/**
+ * Contas abertas: em cada mês fechado, quanto os anunciantes pagaram pelo que
+ * foi exibido, quanto foi para os criadores e quanto ficou com o fundo.
+ */
+function OpenAccounts({ report }: { report: TransparencyReport }) {
+  if (report.open_accounts.length === 0) return null
+
+  return (
+    <section id="contas">
+      <div className="params-head">
+        <h2 className="section-label">Contas abertas</h2>
+        <InfoTip label="De onde saem os números">
+          No dia 1º, a rede fecha o mês anterior com o motor aberto. A raiz com as linhas de todos os extratos vai para o
+          registro público, e cada criador confere o próprio extrato no verificador. O fundo paga a infraestrutura.
+        </InfoTip>
+      </div>
+      <table className="table accounts-table">
+        <thead>
+          <tr>
+            <td />
+            <td>Anúncios</td>
+            <td>Criadores</td>
+            <td>Fundo</td>
+          </tr>
+        </thead>
+        <tbody>
+          {report.open_accounts.map((month) => (
+            <tr key={month.month}>
+              <td>{monthName(month.month)}</td>
+              <td>{formatMoney(month.revenue_cents)}</td>
+              <td>{formatMoney(month.creators_cents)}</td>
+              <td>{formatMoney(month.fund_cents)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   )
 }

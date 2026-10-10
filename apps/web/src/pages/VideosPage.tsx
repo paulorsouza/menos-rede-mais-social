@@ -98,6 +98,12 @@ function VideoPlayer({ post, ad, onClose }: { post: Post; ad: Ad | null; onClose
     }
   }, [])
 
+  // Cada anúncio que aparece é avisado ao backend: é a view com anúncio que
+  // paga o criador, pelas faixas.
+  useEffect(() => {
+    if (adMoment && ad) api.adView(ad.id, post.id, adMoment).catch(() => undefined)
+  }, [adMoment, ad, post.id])
+
   useEffect(() => {
     if (!adMoment) return
     setCountdown(AD_SECONDS)

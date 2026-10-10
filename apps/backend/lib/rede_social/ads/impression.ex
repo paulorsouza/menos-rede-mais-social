@@ -9,6 +9,9 @@ defmodule RedeSocial.Ads.Impression do
     belongs_to :campaign, RedeSocial.Ads.Campaign
     belongs_to :viewer, RedeSocial.Accounts.Account, type: :binary_id
     field :revenue_cents, :integer
+    # A parte que ficou com o fundo de infraestrutura.
+    field :fund_cents, :integer, default: 0
+    field :viewer_region, :string
     # id do criador => centavos recebidos.
     field :splits, :map, default: %{}
     # Um item por short: post, criador, tempo assistido e se tinha anúncio ligado.

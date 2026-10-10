@@ -115,6 +115,9 @@ pub fn router(engines: Arc<Engines>) -> Router {
         .route("/ads/payout", post(payout))
         .route("/ads/impressions", post(impressions))
         .route("/ads/split-shorts", post(split_shorts))
+        .route("/ads/quote", post(quote))
+        .route("/ads/pick", post(pick))
+        .route("/ads/close-month", post(close_month))
         .route("/vault/seal", post(vault_seal))
         .route("/vault/verify", post(vault_verify))
         .route("/vault/open", post(vault_open))
@@ -140,6 +143,7 @@ struct Transparency {
     feed_settings: feed_engine::Params,
     payout_bands: Vec<ads_engine::PayoutBand>,
     shorts_ad_every: u32,
+    ads_settings: ads_engine::Params,
 }
 
 async fn transparency(State(engines): Shared) -> Json<Transparency> {
@@ -153,6 +157,7 @@ async fn transparency(State(engines): Shared) -> Json<Transparency> {
         feed_settings: engines.feed.clone(),
         payout_bands: engines.ads.payout_bands.clone(),
         shorts_ad_every: engines.ads.shorts_ad_every,
+        ads_settings: engines.ads.clone(),
     })
 }
 
@@ -224,7 +229,9 @@ impl Engines {
 #[derive(Deserialize)]
 struct PayoutRequest {
     views: u64,
-    cents_per_thousand: u64,
+    /// Sem ele, vale o valor base de params/ads.toml.
+    #[serde(default)]
+    cents_per_thousand: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -244,7 +251,9 @@ async fn payout(
         effective_views: ads_engine::effective_views(request.views, bands),
         payout_cents: ads_engine::monthly_payout_cents(
             request.views,
-            request.cents_per_thousand,
+            request
+                .cents_per_thousand
+                .unwrap_or(engines.ads.payout.base_cents_per_thousand),
             bands,
         ),
         params_version: engines.ads.version,
@@ -291,12 +300,114 @@ struct SplitRequest {
 
 #[derive(Serialize)]
 struct SplitResponse {
+    /// A parte dos criadores, dividida pelo tempo assistido.
     cents_by_creator: BTreeMap<u64, u64>,
+    /// O que fica para o fundo de infraestrutura.
+    fund_cents: u64,
 }
 
-async fn split_shorts(Json(request): Json<SplitRequest>) -> Json<SplitResponse> {
+/// Rateio de um anúncio de shorts: a parte dos criadores
+/// (`creator_share_percent`) é dividida pelo tempo assistido; o resto, e o que
+/// ninguém pôde receber, fica com o fundo.
+async fn split_shorts(
+    State(engines): Shared,
+    Json(request): Json<SplitRequest>,
+) -> Json<SplitResponse> {
+    let pool = ads_engine::closing::shorts_creator_pool(request.revenue_cents, &engines.ads);
+    let cents_by_creator = ads_engine::split_shorts_revenue(pool, &request.views);
+    let paid: u64 = cents_by_creator.values().sum();
+
     Json(SplitResponse {
-        cents_by_creator: ads_engine::split_shorts_revenue(request.revenue_cents, &request.views),
+        cents_by_creator,
+        fund_cents: request.revenue_cents - paid,
+    })
+}
+
+#[derive(Deserialize)]
+struct QuoteRequest {
+    hours_per_day: u64,
+    days: u64,
+    regional: bool,
+}
+
+async fn quote(
+    State(engines): Shared,
+    Json(request): Json<QuoteRequest>,
+) -> Result<Json<ads_engine::Quote>, ApiError> {
+    if request.hours_per_day == 0
+        || request.hours_per_day > 24 * 1000
+        || request.days == 0
+        || request.days > 366
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "horas por dia ou dias fora do limite".into(),
+        ));
+    }
+    Ok(Json(ads_engine::quote(
+        request.hours_per_day,
+        request.days,
+        request.regional,
+        &engines.ads,
+    )))
+}
+
+#[derive(Deserialize)]
+struct PickRequest {
+    viewer_region: String,
+    seconds_into_day: u32,
+    audience: ads_engine::pacing::Audience,
+    candidates: Vec<ads_engine::pacing::Candidate>,
+    slots: usize,
+}
+
+#[derive(Serialize)]
+struct PickResponse {
+    campaigns: Vec<u64>,
+}
+
+async fn pick(State(engines): Shared, Json(request): Json<PickRequest>) -> Json<PickResponse> {
+    Json(PickResponse {
+        campaigns: ads_engine::pacing::pick(
+            &request.viewer_region,
+            request.seconds_into_day,
+            request.audience,
+            &request.candidates,
+            &engines.ads.delivery,
+            request.slots.min(100),
+        ),
+    })
+}
+
+#[derive(Deserialize)]
+struct CloseMonthRequest {
+    creators: Vec<ads_engine::closing::CreatorMonth>,
+}
+
+#[derive(Serialize)]
+struct CloseMonthResponse {
+    results: Vec<ads_engine::closing::CreatorResult>,
+    params_version: u32,
+    params_sha256: String,
+    engine_version: &'static str,
+    engine_build: &'static str,
+}
+
+/// Fecha o mês: a conta de cada criador, feita só com os dados dele.
+async fn close_month(
+    State(engines): Shared,
+    Json(request): Json<CloseMonthRequest>,
+) -> Json<CloseMonthResponse> {
+    Json(CloseMonthResponse {
+        results: request
+            .creators
+            .iter()
+            .map(|month| ads_engine::closing::close(month, &engines.ads))
+            .collect(),
+        params_version: engines.ads.version,
+        params_sha256: engines.ads_file.sha256.clone(),
+        engine_version: ENGINE_VERSION,
+        engine_build: ENGINE_BUILD,
     })
 }
 
@@ -640,7 +751,54 @@ mod tests {
         )
         .await;
 
+        // 55% para os criadores (params/ads.toml), pelo tempo assistido.
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["cents_by_creator"], json!({ "1": 700, "2": 300 }));
+        assert_eq!(body["cents_by_creator"], json!({ "1": 385, "2": 165 }));
+        assert_eq!(body["fund_cents"], 450);
+    }
+
+    #[tokio::test]
+    async fn closing_a_month_returns_the_lines_to_publish() {
+        let (status, body) = call(
+            "POST",
+            "/ads/close-month",
+            json!({ "creators": [{
+                "month": "2026-10",
+                "creator": "criadora",
+                "video_views": [
+                    { "viewer": "a", "post": 1, "campaign": 1, "regional": false, "at": 1791655200, "viewer_verified": true },
+                    { "viewer": "a", "post": 1, "campaign": 1, "regional": false, "at": 1791655260, "viewer_verified": true }
+                ]
+            }]}),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        let result = &body["results"][0];
+        assert_eq!(result["statuses"], json!(["counted", "repeated_same_day"]));
+        assert_eq!(result["leaves"].as_array().unwrap().len(), 3);
+        assert_eq!(body["params_version"], 2);
+    }
+
+    #[tokio::test]
+    async fn pick_spreads_the_day_budget() {
+        let (status, body) = call(
+            "POST",
+            "/ads/pick",
+            json!({
+                "viewer_region": "Campinas/SP",
+                "seconds_into_day": 43200,
+                "audience": { "region": 1, "total": 1 },
+                "candidates": [
+                    { "id": 1, "scope": "national", "daily_budget": 1000, "delivered_today": 999, "delivered_in_region_today": 0 },
+                    { "id": 2, "scope": "regional", "region": "Campinas/SP", "daily_budget": 1000, "delivered_today": 0, "delivered_in_region_today": 0 }
+                ],
+                "slots": 2
+            }),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["campaigns"], json!([2, 2]));
     }
 }

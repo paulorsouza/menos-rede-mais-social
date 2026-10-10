@@ -19,6 +19,13 @@
 //!     registro.json:   GET /api/registro
 //!     entradas.json:   GET /api/registro/entradas
 //!     prova.json:      GET /api/registro/consistencia?de=<tamanho antigo>
+//!
+//! verificador pagamento <extrato.json> --parametros <params/ads.toml> [--registro <entradas.json>]
+//!     Refaz o fechamento do seu mês com o mesmo código do motor de anúncios:
+//!     quais views com anúncio contaram, as faixas, a sua parte de cada
+//!     anúncio dos shorts e o total. Confere que cada linha do extrato está na
+//!     árvore do fechamento e, com --registro, que a raiz dela foi publicada.
+//!     Baixe o extrato em "Extrato", no painel do criador.
 
 use std::{collections::BTreeMap, env, fs, process};
 
@@ -35,7 +42,10 @@ fn main() {
     let result = match args.first().map(String::as_str) {
         Some("feed") => feed(&args[1..]),
         Some("registro") => registry(&args[1..]),
-        _ => Err("uso: verificador feed | registro (veja o começo de src/main.rs)".into()),
+        Some("pagamento") => payment(&args[1..]),
+        _ => Err(
+            "uso: verificador feed | registro | pagamento (veja o começo de src/main.rs)".into(),
+        ),
     };
     match result {
         Ok(true) => println!("\nTudo confere."),
@@ -308,6 +318,150 @@ fn data_proofs(
         println!("  (passe --registro entradas.json para conferir que a raiz foi publicada)");
     }
     Ok(ok)
+}
+
+// ---------------------------------------------------------------------------
+// Pagamento
+
+#[derive(Deserialize)]
+struct Statement {
+    mes: String,
+    criador: String,
+    parametros_sha256: String,
+    entrada: ads_engine::closing::CreatorMonth,
+    resultado: ads_engine::closing::CreatorResult,
+    fechamento: Closing,
+    provas: Vec<LeafProof>,
+}
+
+#[derive(Deserialize)]
+struct Closing {
+    raiz: String,
+    folhas: u64,
+}
+
+#[derive(Deserialize)]
+struct LeafProof {
+    folha: u64,
+    caminho: Vec<String>,
+}
+
+fn payment(args: &[String]) -> Result<bool, String> {
+    let (flags, rest) = flags(args)?;
+    let statement_path = rest.first().ok_or("falta o arquivo do extrato")?;
+    let statement: Statement = read_json(statement_path)?;
+    let params_path = flag(&flags, "--parametros")?;
+    let params_source =
+        fs::read_to_string(params_path).map_err(|e| format!("{params_path}: {e}"))?;
+    let params = ads_engine::Params::from_toml_str(&params_source).map_err(|e| e.to_string())?;
+
+    println!("Extrato de {} · {}\n", statement.criador, statement.mes);
+    let mut ok = check(
+        format!("{:x}", Sha256::digest(params_source.as_bytes())) == statement.parametros_sha256,
+        "os parâmetros são os mesmos que o motor usou no fechamento",
+    );
+    ok &= check(
+        statement.entrada.creator == statement.criador && statement.entrada.month == statement.mes,
+        "a entrada é deste criador e deste mês",
+    );
+
+    // Refaz a conta com o código do motor e compara campo a campo.
+    let recomputed = ads_engine::closing::close(&statement.entrada, &params);
+    ok &= check(
+        recomputed.statuses == statement.resultado.statuses,
+        &format!(
+            "as views que contaram e as descartadas ({} contaram, {} descartadas)",
+            recomputed.national_views + recomputed.regional_views,
+            recomputed.discarded_views
+        ),
+    );
+    ok &= check(
+        recomputed.video_cents == statement.resultado.video_cents
+            && recomputed.effective_views == statement.resultado.effective_views,
+        &format!(
+            "as faixas: {} views efetivas, {} nos vídeos",
+            recomputed.effective_views,
+            money(recomputed.video_cents)
+        ),
+    );
+    ok &= check(
+        recomputed.shorts_cents_each == statement.resultado.shorts_cents_each,
+        &format!(
+            "a sua parte em cada anúncio dos shorts ({} anúncios, {})",
+            recomputed.shorts_cents_each.len(),
+            money(recomputed.shorts_cents)
+        ),
+    );
+    ok &= check(
+        recomputed == statement.resultado,
+        &format!(
+            "o total: {}{}",
+            money(recomputed.total_cents),
+            if recomputed.payable {
+                ", por PIX"
+            } else {
+                ", fica para o mês seguinte"
+            }
+        ),
+    );
+
+    // Cada linha do extrato está na árvore do fechamento.
+    let root = parse_hash(&statement.fechamento.raiz).ok_or("raiz mal formada")?;
+    let every_leaf = recomputed.leaves.len() == statement.provas.len()
+        && recomputed
+            .leaves
+            .iter()
+            .zip(&statement.provas)
+            .all(|(text, proof)| {
+                hashes(&proof.caminho).is_ok_and(|caminho| {
+                    verify_inclusion(
+                        &leaf_hash(text.as_bytes()),
+                        proof.folha,
+                        statement.fechamento.folhas,
+                        &caminho,
+                        &root,
+                    )
+                })
+            });
+    ok &= check(
+        every_leaf,
+        &format!(
+            "as {} linhas do extrato estão na árvore do fechamento",
+            recomputed.leaves.len()
+        ),
+    );
+
+    if let Some(registry_path) = flags.get("--registro") {
+        let entries: EntriesFile = read_json(registry_path)?;
+        let published = entries.entries.iter().any(|entry| {
+            entry.kind == "fechamento"
+                && leaf_hash(entry.data.as_bytes())
+                    == parse_hash(&entry.leaf_hash).unwrap_or_default()
+                && entry
+                    .data
+                    .contains(&format!("\"raiz\":\"{}\"", statement.fechamento.raiz))
+                && entry
+                    .data
+                    .contains(&format!("\"mes\":\"{}\"", statement.mes))
+        });
+        ok &= check(
+            published,
+            "a raiz do fechamento está publicada no registro público",
+        );
+    } else {
+        println!("  (passe --registro entradas.json para conferir que a raiz foi publicada)");
+    }
+    Ok(ok)
+}
+
+fn hashes(list: &[String]) -> Result<Vec<Hash>, String> {
+    list.iter()
+        .map(|text| parse_hash(text).ok_or_else(|| format!("hash mal formado: {text}")))
+        .collect()
+}
+
+fn money(cents: u64) -> String {
+    format!("R$ {},{:02}", cents / 100, cents % 100)
 }
 
 // ---------------------------------------------------------------------------

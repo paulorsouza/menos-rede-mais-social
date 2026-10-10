@@ -68,6 +68,10 @@ Todas são fictícias, assim como os anunciantes e os valores.
 20. **Legendas.** Com o perfil de legendas, os vídeos de exemplo têm uma voz sintética lendo a legenda do post. Nos shorts, que começam sem som, a legenda automática aparece sozinha. A voz é robótica, então o whisper erra mais do que erraria com gente falando.
 21. **Live.** No campo de publicar, o ícone de antena abre a tela de live: a câmera aparece e "Começar live" põe no ar. Numa janela anônima, entre como a Rafa, que segue a Maria: a live aparece no topo de Vídeos, com o selo "Ao vivo". Encerre: em alguns segundos a gravação vira vídeo no perfil da Maria. "Transmitir pelo OBS" mostra o servidor e a chave.
 22. **Quanto custa uma hora de vídeo.** Na transparência, a tabela mostra o medido nos vídeos da demo ao lado do teto que `params/video.toml` permite: guardar, converter e entregar em cada qualidade.
+23. **Anunciar.** Entre como a Dona Rosa e abra "Anunciar" no menu da conta. A padaria já tem uma campanha no ar. Crie outra: o preço muda na hora, conforme as horas por dia e as datas, e vem da tabela pública. Envie para análise.
+24. **A moderação aprova o anúncio.** Entre como a Lia, abra "Moderação", aba "Anúncios", e aprove. Volte como a Dona Rosa: a campanha espera o PIX, com o código copia e cola. "Simular o pagamento" faz o papel do banco, e ela entra no ar. Como a Maria, que é de Campinas, abra um vídeo do João: o anúncio da padaria pode aparecer, porque o motor escolhe a campanha mais atrasada no ritmo do dia.
+25. **O extrato do criador.** Entre como o João e abra o painel do criador. O mês passado já fechou: abra o extrato e veja as views que contaram, as 35 que não contaram (repetidas no mesmo dia e de conta sem gov.br), as faixas e o PIX que saiu. Baixe o arquivo e, em `services/`, rode `cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json`. Mude um número do arquivo e rode de novo.
+26. **Contas abertas.** Na transparência, veja quanto entrou de anúncio no mês fechado, quanto foi para os criadores e quanto ficou com o fundo. A raiz do fechamento está no registro público.
 
 ## O que é real e o que é simulado
 
@@ -79,6 +83,7 @@ Funciona de verdade nesta demo:
 - O cofre do CPF: cada conta tem o CPF selado com a chave dos guardiões, e a ordem judicial abre com 3 de 5, com as provas conferidas pelo motor. Só as fatias dos guardiões são de teste, para a demo funcionar sem as instituições.
 - O registro público, o recibo assinado de cada feed, os retratos do grafo e o verificador aberto. O build do motor com Nix é reproduzível.
 - O vídeo: armazenamento S3 (Garage), conversão em HLS na fila, envio que retoma, capas, legendas automáticas, modo econômico, lives com gravação e o custo por hora medido.
+- O dinheiro: preço tabelado, entrega no ritmo do dia, antifraude, fechamento do mês pelo motor com a raiz no registro, extrato conferível pelo verificador e a fila de repasses.
 - Os registros de acesso com o IP selado, a moderação com recurso, as regras de menores, baixar os dados e apagar a conta.
 - As regras de publicação: conta básica não publica, e só prata ou ouro recebe por anúncios.
 
@@ -87,5 +92,6 @@ Funciona de verdade nesta demo:
 - O gov.br (o Login Único já está integrado, mas sem credencial a demo usa o simulado), os CPFs, as pessoas, os anunciantes e os valores.
 - As fatias dos guardiões, que na demo ficam em `services/cofre/demo/` e no piloto ficam nos cofres de hardware de cada instituição.
 - A atestação de hardware, que só faz sentido com a rede rodando em servidores de verdade.
+- O banco: um banco simulado faz o papel do PIX (diretório de chaves, cobrança e repasse), e o botão "Simular o pagamento" faz o papel de quem paga. O gov.br da empresa também é simulado: basta um CNPJ válido.
 - A CDN: na demo, um nginx faz o papel dela. Os preços da conta de custo por hora são ilustrativos.
 - Os vídeos de exemplo, gerados pelo ffmpeg, e a voz deles, sintética.

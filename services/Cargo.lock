@@ -936,6 +936,7 @@ dependencies = [
 name = "verificador"
 version = "0.1.0"
 dependencies = [
+ "ads-engine",
  "base64",
  "feed-engine",
  "hex",

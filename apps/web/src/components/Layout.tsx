@@ -10,6 +10,7 @@ import {
   House,
   LogIn,
   LogOut,
+  Megaphone,
   Plus,
   Scale,
   ShieldCheck,
@@ -170,6 +171,12 @@ export function UserMenu({ placement = 'bottom', align = 'end' }: { placement?: 
               <Link to="/moderacao" className="menu-item menu-item-compact" onClick={close}>
                 <ShieldCheck size={18} />
                 <span>Moderação</span>
+              </Link>
+            )}
+            {me.can_publish && (
+              <Link to="/anunciar" className="menu-item menu-item-compact" onClick={close}>
+                <Megaphone size={18} />
+                <span>Anunciar</span>
               </Link>
             )}
             <Link to="/dados" className="menu-item menu-item-compact" onClick={close}>

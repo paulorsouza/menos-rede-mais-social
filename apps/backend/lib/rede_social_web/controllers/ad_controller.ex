@@ -20,4 +20,17 @@ defmodule RedeSocialWeb.AdController do
   end
 
   def impression(_conn, _params), do: {:error, :no_shorts}
+
+  @doc """
+  O app avisa que um anúncio passou dentro de um vídeo, num dos pontos que o
+  criador marcou. É a base do pagamento por faixas.
+  """
+  def view(conn, %{"campaign_id" => campaign_id, "post_id" => post_id, "moment" => moment}) do
+    with {:ok, _view} <-
+           Ads.record_ad_view(conn.assigns.current_account, campaign_id, post_id, moment) do
+      send_resp(conn, :no_content, "")
+    end
+  end
+
+  def view(_conn, _params), do: {:error, :not_found}
 end

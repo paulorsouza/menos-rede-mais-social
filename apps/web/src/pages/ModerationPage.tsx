@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { ApiError, api } from '../api'
 import { useApp } from '../app-context'
@@ -7,9 +8,10 @@ import { InfoTip } from '../components/Popover'
 import { PostPreview } from '../components/PostPreview'
 import { Empty, ErrorState, Loading } from '../components/States'
 import { loadRules } from '../rules'
-import type { AppealItem, QueueEntry, Rule } from '../types'
+import { formatMoney } from '../format'
+import type { AdRule, AppealItem, OwnCampaign, QueueEntry, Rule } from '../types'
 
-type Tab = 'reports' | 'appeals'
+type Tab = 'reports' | 'appeals' | 'campaigns'
 
 /**
  * A mesa da moderação: denúncias e recursos. Toda remoção cita uma regra, e
@@ -20,6 +22,8 @@ export function ModerationPage() {
   const [tab, setTab] = useState<Tab>('reports')
   const [reports, setReports] = useState<QueueEntry[] | null>(null)
   const [appeals, setAppeals] = useState<AppealItem[] | null>(null)
+  const [campaigns, setCampaigns] = useState<OwnCampaign[]>([])
+  const [adRules, setAdRules] = useState<AdRule[]>([])
   const [rules, setRules] = useState<Rule[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -30,6 +34,8 @@ export function ModerationPage() {
       .then((queue) => {
         setReports(queue.reports)
         setAppeals(queue.appeals)
+        setCampaigns(queue.campaigns)
+        setAdRules(queue.ad_rules)
       })
       .catch((e: Error) => setError(e.message))
     loadRules().then(setRules).catch(() => undefined)
@@ -62,6 +68,9 @@ export function ModerationPage() {
         <button type="button" role="tab" className="segment" aria-selected={tab === 'appeals'} onClick={() => setTab('appeals')}>
           Recursos{appeals && appeals.length > 0 ? ` · ${appeals.length}` : ''}
         </button>
+        <button type="button" role="tab" className="segment" aria-selected={tab === 'campaigns'} onClick={() => setTab('campaigns')}>
+          Anúncios{campaigns.length > 0 ? ` · ${campaigns.length}` : ''}
+        </button>
       </div>
 
       {error && <ErrorState message={error} />}
@@ -76,6 +85,20 @@ export function ModerationPage() {
               entry={entry}
               rules={rules}
               onDone={() => setReports((current) => current?.filter((item) => item.post.id !== entry.post.id) ?? null)}
+            />
+          ))}
+        </ul>
+      )}
+
+      {loaded && tab === 'campaigns' && (
+        <ul className="mod-list">
+          {campaigns.length === 0 && <Empty>Nenhum anúncio esperando análise.</Empty>}
+          {campaigns.map((campaign) => (
+            <CampaignReview
+              key={campaign.id}
+              campaign={campaign}
+              rules={adRules}
+              onDone={() => setCampaigns((current) => current.filter((item) => item.id !== campaign.id))}
             />
           ))}
         </ul>
@@ -152,6 +175,46 @@ function ReportItem({ entry, rules, onDone }: { entry: QueueEntry; rules: Rule[]
         </button>
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => run(() => api.keepPost(entry.post.id), 'Post mantido')}>
           Manter
+        </button>
+      </div>
+    </li>
+  )
+}
+
+/** Anúncio novo: aprova (a rede manda a cobrança por PIX) ou recusa citando uma regra de anúncio. */
+function CampaignReview({ campaign, rules, onDone }: { campaign: OwnCampaign; rules: AdRule[]; onDone: () => void }) {
+  const [rule, setRule] = useState(rules[0]?.number ?? 1)
+  const { busy, run } = useAction(onDone)
+
+  return (
+    <li className="mod-item">
+      <p className="mod-summary">
+        <strong>{campaign.advertiser}</strong> · {campaign.scope === 'regional' ? campaign.region : 'país todo'} ·{' '}
+        {campaign.price_cents !== null && formatMoney(campaign.price_cents)}
+      </p>
+      <div className="ad-preview" style={{ '--ad-color': campaign.color ?? '#16a34a' } as CSSProperties}>
+        <span className="tag tag-dark">Anúncio</span>
+        <h2 className="ad-title">{campaign.title}</h2>
+        {campaign.body && <p className="ad-body">{campaign.body}</p>}
+      </div>
+      <div className="mod-actions">
+        <select value={rule} onChange={(event) => setRule(Number(event.target.value))} aria-label="Regra da recusa">
+          {rules.map((option) => (
+            <option key={option.number} value={option.number}>
+              {option.number}. {option.title}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => run(() => api.rejectCampaign(campaign.id, rule), 'Anúncio recusado')}>
+          Recusar
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={busy}
+          onClick={() => run(() => api.approveCampaign(campaign.id), 'Aprovado. O anunciante recebeu a cobrança por PIX.')}
+        >
+          Aprovar
         </button>
       </div>
     </li>

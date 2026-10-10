@@ -5,7 +5,7 @@ defmodule RedeSocial.Transparency do
   quanto custa uma hora de vídeo.
   """
 
-  alias RedeSocial.{Accounts, Ads, Engine, Identification, Moderation, Social}
+  alias RedeSocial.{Accounts, Ads, Engine, Identification, Moderation, Payments, Social}
   alias RedeSocial.Media.Costs
   alias RedeSocial.Moderation.Rules
 
@@ -25,6 +25,8 @@ defmodule RedeSocial.Transparency do
       identifications: Identification.public_log(),
       rules: Rules.all(),
       ads: Ads.library(),
+      ad_rules: Ads.Rules.all(),
+      open_accounts: Payments.open_accounts(),
       video: %{params: Costs.params_file(), costs: Costs.summary()}
     }
   end

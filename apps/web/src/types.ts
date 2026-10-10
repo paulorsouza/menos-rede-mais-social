@@ -23,6 +23,8 @@ export interface Me extends Author {
   can_monetize: boolean
   /** Conta verificada e maior de idade. */
   can_go_live: boolean
+  /** Rede de demonstração: mostra os botões que fazem o papel do banco. */
+  demo: boolean
   moderator: boolean
   legal_officer: boolean
   unread_notices: number
@@ -131,6 +133,87 @@ export interface Dashboard {
       creators: number
     }[]
   }
+  pix_key: { kind: 'email' | 'phone' | 'random'; hint: string } | null
+  statements: StatementSummary[]
+}
+
+export type PayoutStatus = 'sending' | 'paid' | 'carried' | 'no_key' | 'failed'
+
+export interface StatementSummary {
+  month: string
+  total_cents: number
+  status: PayoutStatus
+  paid_at: string | null
+}
+
+/** Um mês fechado, linha a linha. */
+export interface Statement {
+  month: string
+  national_views: number
+  regional_views: number
+  discarded_views: number
+  discarded_by_reason: Record<string, number>
+  by_post: { post_id: number; views: number }[]
+  weighted_views: number
+  effective_views: number
+  video_cents: number
+  shorts: { id: number; at: number; revenue_cents: number; my_cents: number }[]
+  shorts_cents: number
+  carry_in_cents: number
+  total_cents: number
+  payable: boolean
+  status: PayoutStatus
+  pix_key_hint: string | null
+  pix_e2e_id: string | null
+  paid_at: string | null
+  root: string
+  registro_position: number | null
+  lines: number
+}
+
+export interface Advertiser {
+  id: number
+  name: string
+  cnpj: string
+}
+
+export interface AdRule {
+  number: number
+  title: string
+  text: string
+}
+
+export type CampaignStatus = 'in_review' | 'awaiting_payment' | 'active' | 'rejected'
+
+/** Uma campanha vista por quem anuncia (ou pela moderação). */
+export interface OwnCampaign extends Ad {
+  status: CampaignStatus
+  hours_per_day: number
+  impressions_per_day: number | null
+  cents_per_impression: number
+  price_cents: number | null
+  paid_cents: number
+  starts_on: string
+  ends_on: string
+  rejection_rule: AdRule | null
+  brcode: string | null
+  charge_txid: string | null
+}
+
+export interface CampaignQuote {
+  impressions_per_day: number
+  days: number
+  cents_per_impression: number
+  total_cents: number
+}
+
+export interface OpenAccountsMonth {
+  month: string
+  revenue_cents: number
+  creators_cents: number
+  fund_cents: number
+  root: string
+  registro_position: number | null
 }
 
 export interface ParamsFile {
@@ -193,12 +276,16 @@ export interface TransparencyReport {
     entries: { opened_at: string; court: string; case_number: string | null }[]
   }
   ads: (Ad & {
+    cnpj: string | null
     hours_per_day: number
     cents_per_impression: number
     paid_cents: number
+    delivered: number
     starts_on: string
     ends_on: string
   })[]
+  ad_rules: AdRule[]
+  open_accounts: OpenAccountsMonth[]
 }
 
 /** Uma regra de conteúdo. Toda remoção cita uma delas. */

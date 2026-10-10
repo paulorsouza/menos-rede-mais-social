@@ -10,9 +10,10 @@ defmodule RedeSocial.Demo.Seeds do
 
   import Ecto.Query, only: [from: 2]
 
-  alias RedeSocial.{Accounts, Media, Moderation, Repo, Social}
-  alias RedeSocial.Accounts.CPF
-  alias RedeSocial.Ads.Campaign
+  alias RedeSocial.{Accounts, Ads, Media, Moderation, Payments, Repo, Social}
+  alias RedeSocial.Accounts.{CNPJ, CPF}
+  alias RedeSocial.Ads.{AdView, Advertiser, Campaign}
+  alias RedeSocial.Payments.Pix
   alias RedeSocial.Demo.{Art, Clips}
   alias RedeSocial.Social.{Like, Post, Save, View}
 
@@ -311,7 +312,7 @@ defmodule RedeSocial.Demo.Seeds do
       color: "#1d4ed8",
       scope: :national,
       hours_per_day: 10_000,
-      cents_per_impression: 3,
+      cents_per_impression: 2,
       paid_cents: 45_000_000
     },
     %{
@@ -322,7 +323,7 @@ defmodule RedeSocial.Demo.Seeds do
       color: "#7c3aed",
       scope: :national,
       hours_per_day: 6_000,
-      cents_per_impression: 3,
+      cents_per_impression: 2,
       paid_cents: 27_000_000
     },
     %{
@@ -399,6 +400,10 @@ defmodule RedeSocial.Demo.Seeds do
     }
   ]
 
+  # Quem já recebe por PIX. O Carlos fica sem chave, para a demonstração
+  # mostrar o cadastro dela no painel do criador.
+  @pix_ready ~w(maria.silva joao.pereira bia.santos lucas.lima dona.rosa)
+
   def run do
     if Accounts.get_by_nickname("maria.silva") do
       Logger.info("Os dados de demonstração já existem. Nada a fazer.")
@@ -446,7 +451,8 @@ defmodule RedeSocial.Demo.Seeds do
     # O primeiro retrato do grafo, para a conta do feed já sair com provas.
     {:ok, _snapshot} = RedeSocial.GraphCommitments.take_snapshot()
 
-    create_campaigns()
+    campaigns = create_campaigns(personas)
+    create_last_month(personas, crowd, posts, campaigns)
 
     Logger.info(
       "Dados de demonstração criados: #{map_size(personas)} pessoas e #{length(crowd)} contas de público."
@@ -458,6 +464,8 @@ defmodule RedeSocial.Demo.Seeds do
   end
 
   defp create_persona(persona) do
+    cpf = CPF.generate_for_testing()
+
     {:ok, account} =
       Accounts.register_verified(
         %{
@@ -467,10 +475,17 @@ defmodule RedeSocial.Demo.Seeds do
           region: persona.region,
           bio: persona.bio
         },
-        CPF.generate_for_testing()
+        cpf
       )
 
     Social.add_monthly_views(account.id, Social.current_month(), persona.monthly_views)
+
+    # O banco simulado conhece a chave PIX de cada pessoa de exemplo,
+    # <apelido>@pix.demo, no CPF dela.
+    Pix.Demo.register("#{persona.nickname}@pix.demo", cpf, persona.nickname)
+
+    if persona.nickname in @pix_ready,
+      do: {:ok, _key} = Payments.register_pix_key(account, "#{persona.nickname}@pix.demo")
 
     cond do
       persona[:moderator] ->
@@ -679,22 +694,134 @@ defmodule RedeSocial.Demo.Seeds do
     end
   end
 
-  defp create_campaigns do
+  # Cada campanha tem a empresa por trás, com CNPJ. A da Padaria Dona Rosa é
+  # da conta dona.rosa, para a demonstração mostrar o lado de quem anuncia.
+  # Elas começaram no mês passado, para o mês passado ter o que fechar.
+  defp create_campaigns(personas) do
     today = Date.utc_today()
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    starts = today |> Date.beginning_of_month() |> Date.shift(month: -1)
 
-    rows =
-      Enum.map(@campaigns, fn campaign ->
-        campaign
-        |> Map.put_new(:region, nil)
-        |> Map.merge(%{
-          starts_on: Date.add(today, -10),
-          ends_on: Date.add(today, 20),
-          inserted_at: now,
-          updated_at: now
+    Enum.map(@campaigns, fn campaign ->
+      owner = if campaign.advertiser == "Padaria Dona Rosa", do: Map.fetch!(personas, "dona.rosa")
+
+      advertiser =
+        Repo.insert!(%Advertiser{
+          account_id: owner && owner.id,
+          cnpj: CNPJ.generate_for_testing(),
+          name: campaign.advertiser
         })
+
+      Repo.insert!(
+        struct(
+          Campaign,
+          Map.merge(campaign, %{
+            advertiser_id: advertiser.id,
+            status: :active,
+            impressions_per_day: div(campaign.hours_per_day * 3600, 15),
+            price_cents: campaign.paid_cents,
+            paid_at: now,
+            starts_on: starts,
+            ends_on: Date.add(today, 20)
+          })
+        )
+      )
+    end)
+  end
+
+  # O mês passado, já fechado: anúncios que passaram nos vídeos (com algumas
+  # views que o antifraude descarta), anúncios nos shorts e o fechamento,
+  # com os extratos e os repasses por PIX.
+  defp create_last_month(personas, crowd, posts, campaigns) do
+    month = Date.utc_today() |> Date.beginning_of_month() |> Date.shift(month: -1)
+    days = Date.days_in_month(month)
+    viewers = Enum.map(crowd, &elem(&1, 0))
+    authors = Map.new(Map.values(personas), &{&1.id, &1})
+    national = Enum.filter(campaigns, &(&1.scope == :national))
+    rosa = Enum.find(campaigns, &(&1.advertiser == "Padaria Dona Rosa"))
+
+    at = fn day, hour ->
+      DateTime.new!(Date.add(month, day - 1), Time.new!(rem(hour, 24), 0, 0), "Etc/UTC")
+    end
+
+    videos =
+      for {%Post{kind: :video} = post, _likes, _audience} <- posts,
+          post.monetized and Accounts.can_monetize?(Map.fetch!(authors, post.author_id)),
+          do: post
+
+    # Cada pessoa do público vê o anúncio uma vez por dia, em dias diferentes
+    # para cada vídeo. Quem é de Campinas às vezes vê o anúncio da padaria.
+    rows =
+      for {post, n} <- Enum.with_index(videos),
+          {viewer, i} <- Enum.with_index(viewers),
+          day <- 1..days,
+          rem(i + day, n + 1) == 0 do
+        regional = viewer.region == "Campinas/SP" and rem(day, 3) == 0
+        campaign = if regional, do: rosa, else: Enum.at(national, rem(i + day, length(national)))
+
+        %{
+          campaign_id: campaign.id,
+          post_id: post.id,
+          creator_id: post.author_id,
+          viewer_id: viewer.id,
+          viewer_region: viewer.region,
+          viewer_verified: true,
+          regional: regional,
+          moment: "start",
+          revenue_cents: campaign.cents_per_impression,
+          inserted_at: at.(day, 12 + rem(i, 10))
+        }
+      end
+
+    # O que o antifraude descarta: a mesma pessoa vendo o mesmo vídeo de novo
+    # no mesmo dia, e views de uma conta básica, sem gov.br.
+    {:ok, basic} = Accounts.register_basic(%{nickname: "sem.govbr", region: "São Paulo/SP"})
+    target = List.first(videos)
+    campaign = List.first(national)
+
+    extra =
+      for(i <- 0..19, do: {Enum.at(viewers, i), true, at.(5, 12 + rem(i, 10) + 1)}) ++
+        for(day <- 1..15, do: {basic, false, at.(day, 20)})
+
+    discarded =
+      Enum.map(extra, fn {viewer, verified, when_} ->
+        %{
+          campaign_id: campaign.id,
+          post_id: target.id,
+          creator_id: target.author_id,
+          viewer_id: viewer.id,
+          viewer_region: viewer.region,
+          viewer_verified: verified,
+          regional: false,
+          moment: "start",
+          revenue_cents: campaign.cents_per_impression,
+          inserted_at: when_
+        }
       end)
 
-    Repo.insert_all(Campaign, rows)
+    (rows ++ discarded) |> Enum.chunk_every(2_000) |> Enum.each(&Repo.insert_all(AdView, &1))
+
+    # Anúncios nos shorts, com o rateio feito pelo motor na hora.
+    shorts = for {%Post{kind: :short} = post, _likes, _audience} <- posts, do: post
+
+    for n <- 0..59 do
+      block = for k <- 0..5, do: Enum.at(shorts, rem(n + k, length(shorts)))
+
+      watched =
+        Enum.map(
+          block,
+          &%{"post_id" => &1.id, "watched_ms" => 3_000 + rem(n * 7 + &1.id * 13, 9_000)}
+        )
+
+      viewer = Enum.at(viewers, rem(n * 3, length(viewers)))
+      campaign = Enum.at(national, rem(n, length(national)))
+      {:ok, impression} = Ads.record_impression(viewer, campaign.id, watched)
+
+      Repo.update_all(from(i in RedeSocial.Ads.Impression, where: i.id == ^impression.id),
+        set: [inserted_at: at.(rem(n, days) + 1, 18)]
+      )
+    end
+
+    {:ok, _month, _payouts} = Payments.close_month(month)
   end
 end

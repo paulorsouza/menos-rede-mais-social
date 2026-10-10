@@ -8,12 +8,29 @@ defmodule RedeSocial.Engine do
 
   def rank(request), do: post("/feed/rank", request)
 
-  def payout(views, cents_per_thousand) do
-    post("/ads/payout", %{views: views, cents_per_thousand: cents_per_thousand})
-  end
+  @doc "Pagamento por faixas de um total de views, com o valor base de params/ads.toml."
+  def payout(views), do: post("/ads/payout", %{views: views})
 
   def split_shorts(revenue_cents, views) do
     post("/ads/split-shorts", %{revenue_cents: revenue_cents, views: views})
+  end
+
+  @doc "Preço de uma campanha, pela tabela pública."
+  def quote(hours_per_day, days, regional?) do
+    post("/ads/quote", %{hours_per_day: hours_per_day, days: days, regional: regional?})
+  end
+
+  @doc "Qual campanha entra em cada um dos próximos anúncios, pelo ritmo do dia."
+  def pick(request), do: post("/ads/pick", request)
+
+  @doc "Fecha o mês de cada criador. Pode ser grande: espera mais."
+  def close_month(creators) do
+    request(
+      method: :post,
+      url: "/ads/close-month",
+      json: %{creators: creators},
+      receive_timeout: 120_000
+    )
   end
 
   def transparency, do: get("/transparency")

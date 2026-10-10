@@ -19,10 +19,10 @@ defmodule RedeSocialWeb.FeedController do
       {:ok, feed} = Feed.build(viewer, mode, kinds)
 
       # Nos vídeos, o anúncio entra nos pontos que o criador marcou. O player
-      # recebe o anúncio escolhido para esta pessoa (regional, se houver).
+      # recebe o anúncio que o motor escolheu pelo ritmo do dia.
       ad =
         if :video in kinds and not Accounts.minor?(viewer) do
-          Date.utc_today() |> Ads.active_campaigns() |> Ads.pick_campaign(viewer, 0)
+          viewer |> Ads.pick_campaigns(1) |> List.first()
         end
 
       json(conn, %{

@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router'
 import { AppProvider, useApp } from './app-context'
 import { Layout } from './components/Layout'
 import { Empty, Loading } from './components/States'
+import { AdvertisePage } from './pages/AdvertisePage'
 import { CreatePage } from './pages/CreatePage'
 import { CreatorPage } from './pages/CreatorPage'
 import { DataPage } from './pages/DataPage'
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="criar" element={<RequireAccount><CreatePage /></RequireAccount>} />
             <Route path="transmitir" element={<RequireAccount><LivePage /></RequireAccount>} />
             <Route path="criador" element={<RequireAccount><CreatorPage /></RequireAccount>} />
+            <Route path="anunciar" element={<RequireAccount><AdvertisePage /></RequireAccount>} />
             <Route path="avisos" element={<RequireAccount><NoticesPage /></RequireAccount>} />
             <Route path="dados" element={<RequireAccount><DataPage /></RequireAccount>} />
             <Route path="moderacao" element={<RequireAccount><ModerationPage /></RequireAccount>} />

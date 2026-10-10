@@ -63,6 +63,8 @@ defmodule RedeSocialWeb.Router do
       post "/session", SessionController, :create
       get "/demo/personas", DemoController, :personas
       get "/govbr-simulado/cpf-de-teste", DemoController, :test_cpf
+      get "/demo/cnpj-de-teste", DemoController, :test_cnpj
+      post "/demo/pix/:txid/pagar", DemoController, :pay_charge
       post "/govbr-simulado/cadastro", DemoController, :register
       post "/govbr-simulado/conta-basica", DemoController, :register_basic
     end
@@ -90,7 +92,15 @@ defmodule RedeSocialWeb.Router do
       post "/me/notices/read", NoticeController, :read
       post "/accounts/:nickname/follow", AccountController, :follow
       post "/ads/impressions", AdController, :impression
+      post "/ads/views", AdController, :view
       get "/creator/dashboard", CreatorController, :show
+      post "/creator/pix", CreatorController, :pix
+      get "/creator/statements/:month", CreatorController, :statement
+      get "/creator/statements/:month/file", CreatorController, :statement_file
+      get "/anunciante", AdvertiserController, :show
+      post "/anunciante", AdvertiserController, :register
+      post "/anunciante/orcamento", AdvertiserController, :price
+      post "/anunciante/campanhas", AdvertiserController, :create
 
       scope "/identification" do
         pipe_through :legal
@@ -110,6 +120,8 @@ defmodule RedeSocialWeb.Router do
         post "/posts/:id/remove", ModerationController, :remove
         post "/posts/:id/keep", ModerationController, :keep
         post "/appeals/:id/decide", ModerationController, :decide
+        post "/campaigns/:id/approve", ModerationController, :approve_campaign
+        post "/campaigns/:id/reject", ModerationController, :reject_campaign
       end
     end
   end

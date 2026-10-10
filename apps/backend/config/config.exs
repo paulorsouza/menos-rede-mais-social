@@ -15,10 +15,7 @@ config :rede_social,
   # Motor de feed e anúncios (services/engine-server).
   engine_url: "http://localhost:7070",
   # Pasta de trabalho: envios em andamento e originais esperando conversão.
-  staging_dir: "priv/staging",
-  # Valor base pago por mil views na primeira faixa, em centavos. Ilustrativo
-  # até a decisão do conselho (seção 6 do plano).
-  base_cents_per_thousand: 200
+  staging_dir: "priv/staging"
 
 # Login Único do gov.br. Fica desligado até ter client_id (config/runtime.exs).
 # O gov.br não informa a data de nascimento: sem outra fonte, a conta nasce
@@ -48,7 +45,12 @@ config :rede_social, Oban,
   queues: [default: 5, video: 2],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 7 * 24 * 3600},
-    {Oban.Plugins.Cron, crontab: [{"@hourly", RedeSocial.Uploads.PurgeWorker}]}
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"@hourly", RedeSocial.Uploads.PurgeWorker},
+       # Dia 1, às 6h (UTC), fecha o mês anterior e manda os repasses.
+       {"0 6 1 * *", RedeSocial.Payments.CloseMonthWorker}
+     ]}
   ]
 
 # Configure the endpoint

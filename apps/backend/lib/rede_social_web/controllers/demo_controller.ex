@@ -5,8 +5,10 @@ defmodule RedeSocialWeb.DemoController do
   """
   use RedeSocialWeb, :controller
 
-  alias RedeSocial.{Accounts, Demo}
-  alias RedeSocial.Accounts.CPF
+  alias RedeSocial.{Accounts, Ads, Demo}
+  alias RedeSocial.Accounts.{CNPJ, CPF}
+  alias RedeSocial.Payments.Pix
+  alias RedeSocial.Repo
   alias RedeSocialWeb.{Auth, Present}
 
   action_fallback RedeSocialWeb.FallbackController
@@ -24,10 +26,27 @@ defmodule RedeSocialWeb.DemoController do
     attrs = Map.take(params, ~w(nickname govbr_level age_band region bio))
 
     with {:ok, account} <- Accounts.register_verified(attrs, params["cpf"]) do
+      # O banco simulado ganha uma chave PIX desta pessoa, para ela poder
+      # cadastrar no painel do criador: <apelido>@pix.demo.
+      {:ok, cpf} = CPF.normalize(params["cpf"])
+      Pix.Demo.register("#{account.nickname}@pix.demo", cpf, account.nickname)
+
       conn
       |> Auth.log_in(account)
       |> put_status(:created)
       |> json(%{account: Present.me(account)})
+    end
+  end
+
+  def test_cnpj(conn, _params) do
+    json(conn, %{cnpj: CNPJ.format(CNPJ.generate_for_testing())})
+  end
+
+  @doc "Faz o papel do banco: paga a cobrança e avisa a rede, como o aviso (webhook) de um PSP."
+  def pay_charge(conn, %{"txid" => txid}) do
+    with %{price_cents: cents} <- Repo.get_by(Ads.Campaign, charge_txid: txid),
+         {:ok, campaign} <- Ads.confirm_payment(txid, cents) do
+      json(conn, %{ok: true, status: campaign.status})
     end
   end
 
