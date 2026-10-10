@@ -363,12 +363,11 @@ Feito:
 - Recibo do feed: o motor assina cada cálculo, ligando a entrada, a saída, os parâmetros e a versão. Qualquer pessoa baixa a conta do próprio feed com um toque.
 - Retratos do grafo: as curtidas, views e seguidores viram uma árvore com pseudônimos, e só a raiz é publicada. A conta do feed traz a prova de que cada ligação usada estava no retrato.
 - Verificador aberto, que não fala com a rede: refaz o feed, confere o recibo, as provas dos dados e o registro.
-- Build reproduzível com Nix: o motor compilado duas vezes do zero sai idêntico, byte por byte. A CI repete isso a cada envio e, na `main`, assina os binários com o Sigstore.
+- Build reproduzível com Nix: o motor compilado duas vezes do zero sai idêntico, byte por byte. A CI repete isso a cada envio e, na `main`, assina os binários com o Sigstore; a assinatura já roda de verdade desde o primeiro envio para a `main`.
 
 Falta:
 
 - Alguém de fora fazer o caminho todo sozinho, que é o portão. As ferramentas estão prontas e documentadas no README.
-- Rodar a assinatura do Sigstore de verdade, no primeiro envio para a `main`.
 - Escala. As leituras pesadas do feed já vão para uma réplica de leitura quando ela existe. Medido na demo (110 contas, 1.735 ligações): o feed meio a meio sai em 69 ms, juntar as 984 ligações da vizinhança leva 16 ms e o retrato do grafo, 175 ms. O problema é a forma: hoje as ligações são juntadas a cada pedido e o retrato relê o grafo inteiro. Com milhões de pessoas, isso pede vizinhos pré-calculados, retrato incremental e as tabelas de views e curtidas particionadas por mês. Essas mudanças entram quando houver carga real para medir, e não antes.
 - gRPC entre o backend e o motor. O JSON com os campos de `proto/` funciona e é o que o verificador usa para o recibo; o gRPC entra junto com a escala, quando o tamanho das mensagens pesar.
 - Ajustar os pesos do grafo com uso real, por RFC.
@@ -384,6 +383,7 @@ Feito:
 - O tipo do post é decidido no servidor, pelo próprio arquivo. O post de vídeo nasce "processando" e só aparece para os outros quando a conversão termina.
 - Envio que retoma de onde parou (protocolo tus): o arquivo sobe em pedaços enquanto a pessoa escreve a legenda e, se a conexão cair, continua dali, até depois de recarregar a página.
 - Fotos sem os metadados da câmera, inclusive a localização do GPS.
+- Endereço de mídia assinado e com prazo, para toda foto e todo vídeo: `/media/s/<prazo>/<assinatura>/<chave>`, conferido pela borda (o `secure_link` do nginx) ou, sem S3, pelo backend. O link vale de 6 a 7 horas, então um link que vazou, inclusive de mídia de menor ou de post apagado, para de abrir. O navegador não guarda cópia (`no-store`).
 - Modo econômico de dados: nada do vídeo é baixado antes do play e a qualidade não passa de 360. Ele liga sozinho quando o celular pede economia ou a conexão é 2G.
 - Legendas automáticas com o whisper.cpp rodando dentro da rede: nenhum áudio sai para empresa de fora. Nos shorts, que começam sem som, a legenda aparece sozinha.
 - Lives pelo navegador (WebRTC) ou pelo OBS (RTMP), entregues em HLS de baixa latência. O backend autoriza cada conexão pela chave da live, e a gravação vira vídeo comum quando a live acaba. Menor de idade não faz live.
@@ -394,7 +394,6 @@ Falta:
 - O orçamento, que fecha o portão. O custo já é medido; falta alguém dizer quanto pode gastar, e isso depende de quem operar a rede.
 - Medir com vídeos de verdade. Os da demo são gerados e simples, então ficam bem abaixo do teto.
 - CDN de verdade, com remoção imediata. Na demo, um arquivo apagado some da borda em até 5 minutos; numa CDN, a rede chama a API de remoção na hora.
-- Endereço assinado e com prazo para a mídia de menores. Hoje o endereço é aleatório, mas quem tiver o link consegue abrir.
 - Legendas melhores. O modelo padrão (small) erra palavras difíceis e às vezes inventa texto em áudio curto ou sem fala. Dá para usar um modelo maior e deixar quem publicou corrigir a legenda.
 - Chat e anúncios nas lives, que estão em aberto.
 - Codecs mais eficientes (AV1) para gastar menos banda, quando os aparelhos simples tocarem.

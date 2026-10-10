@@ -50,7 +50,9 @@ defmodule RedeSocial.Privacy do
               removed_at: p.removed_at,
               removal_rule: p.removal_rule
             }
-        ),
+        )
+        # Endereço assinado: abre nas próximas horas, para baixar os arquivos.
+        |> Enum.map(&Map.update!(&1, :media_url, fn path -> RedeSocial.Storage.url(path) end)),
       likes:
         all(
           from l in Like,

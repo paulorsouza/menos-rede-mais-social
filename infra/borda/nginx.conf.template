@@ -6,21 +6,39 @@
 # A cópia vale 5 minutos e depois é conferida de novo com o Garage. É esse o
 # tempo que um post apagado leva para sumir da borda. Numa CDN de verdade, a
 # rede chama a API de remoção da CDN na hora em que apaga.
+#
+# Só abre endereço assinado pela rede e no prazo:
+#   /media/s/<prazo>/<assinatura>/<chave>
+# A assinatura é md5(prazo + escopo + " " + segredo), e o escopo são os dois
+# primeiros pedaços da chave (v/<id> ou f/<id>.webp), para os pedaços de um
+# vídeo herdarem a assinatura do caminho. O segredo vem de MEDIA_LINK_SECRET,
+# o mesmo do backend (RedeSocial.Storage).
 proxy_cache_path /var/cache/nginx/midia levels=1:2 keys_zone=midia:10m
                  max_size=2g inactive=7d use_temp_path=off;
+
+upstream garage_web {
+    server garage:3902;
+}
 
 server {
     listen 8080;
     server_tokens off;
 
-    location /media/ {
-        proxy_pass http://garage:3902/;
+    location ~ ^/media/s/(?<expires>[0-9]+)/(?<signature>[A-Za-z0-9_-]+)/(?<scope>[^/]+/[^/]+)(?<rest>/.*)?$ {
+        secure_link $signature,$expires;
+        secure_link_md5 "$expires$scope ${MEDIA_LINK_SECRET}";
+        # Vazio: a assinatura não bate. Zero: o prazo passou.
+        if ($secure_link = "") { return 403; }
+        if ($secure_link = "0") { return 403; }
+
+        proxy_pass http://garage_web/$scope$rest;
         # O endpoint web do Garage escolhe o balde pelo Host.
         proxy_set_header Host midia.web.garage;
         proxy_http_version 1.1;
 
+        # A cópia da borda é a mesma para qualquer assinatura.
         proxy_cache midia;
-        proxy_cache_key $uri;
+        proxy_cache_key $scope$rest;
         proxy_cache_valid 200 5m;
         proxy_cache_valid 404 10s;
         proxy_cache_revalidate on;
@@ -29,9 +47,13 @@ server {
         proxy_ignore_headers Cache-Control Expires Set-Cookie;
         proxy_hide_header Cache-Control;
 
-        # O navegador pode guardar por um dia: o nome de cada arquivo é
-        # aleatório e nunca muda de conteúdo.
-        add_header Cache-Control "public, max-age=86400";
+        # O navegador não guarda nada: a rede não deixa no aparelho o que a
+        # pessoa viu.
+        add_header Cache-Control "no-store" always;
         add_header X-Borda $upstream_cache_status always;
+    }
+
+    location /media/ {
+        return 403;
     }
 }

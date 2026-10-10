@@ -31,10 +31,15 @@ defmodule RedeSocialWeb.Endpoint do
     raise_on_missing_only: code_reloading?
 
   # Fotos e vídeos prontos, quando ficam numa pasta local (sem S3). Com S3,
-  # quem serve /media é a borda (infra/borda).
+  # quem serve /media é a borda (infra/borda). Só com endereço assinado e no
+  # prazo, e sem cópia no navegador.
+  plug RedeSocialWeb.SignedMedia
+
   plug Plug.Static,
     at: "/media",
-    from: Application.compile_env(:rede_social, [RedeSocial.Storage, :root], "priv/media")
+    from: Application.compile_env(:rede_social, [RedeSocial.Storage, :root], "priv/media"),
+    cache_control_for_etags: "no-store",
+    cache_control_for_vsn_requests: "no-store"
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
