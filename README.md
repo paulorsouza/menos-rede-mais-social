@@ -14,7 +14,13 @@ docker compose up --build
 
 Na primeira vez demora alguns minutos. Depois, abra http://localhost:5173 e entre como uma das pessoas de exemplo. O passo a passo para apresentar está em [docs/demo.md](docs/demo.md).
 
-Se a porta 5432 já estiver em uso na sua máquina, crie um arquivo `.env` na raiz com `DB_PORT=5433`.
+As legendas automáticas ficam num perfil à parte, porque o modelo de fala tem 466 MB e é baixado na primeira vez:
+
+```bash
+docker compose --profile legendas up --build
+```
+
+Se a porta 5432 já estiver em uso na sua máquina, crie um arquivo `.env` na raiz com `DB_PORT=5433`. A borda usa a 8090 (`BORDA_PORT`), as lives usam a 1935 (RTMP, para o OBS) e a 8189 (WebRTC).
 
 Para voltar a demo ao estado inicial:
 
@@ -32,7 +38,9 @@ services/                serviços em Rust (workspace Cargo)
   feed-engine/           os modos de feed, determinísticos e auditáveis
   ads-engine/            exibições, faixas de pagamento e rateio dos shorts
   engine-server/         servidor HTTP dos dois motores, usado pelo backend
-params/                  parâmetros públicos do feed e dos anúncios
+params/                  parâmetros públicos do feed, dos anúncios e do vídeo
+infra/                   configuração dos serviços da demo: armazenamento (Garage),
+                         borda (nginx), lives (MediaMTX) e legendas (whisper.cpp)
 proto/                   contratos gRPC entre o backend e os serviços em Rust
 docs/plano-inicial.md    o plano: produto, dinheiro, arquitetura, governança e fases
 docs/demo.md             roteiro para apresentar a demonstração
@@ -52,11 +60,13 @@ Por enquanto o motor conversa com o backend em JSON, com os mesmos campos dos co
 - **Moderação** com regras públicas e numeradas, denúncia no "?" de cada post, remoção citando a regra, aviso ao autor e recurso julgado por outra pessoa da moderação.
 - **Menores de idade** com perfil privado e sem anúncio. **Seus dados**: baixar tudo e apagar a conta. **Registros de acesso** do Marco Civil, com o IP selado e apagados depois de seis meses.
 - **Posts** de texto curto (140 caracteres, sem respostas), foto, vídeo e short, com curtidas, salvamentos e seguidores. É um campo só: o tipo sai do arquivo anexado (vídeo em pé vira short), e não tem tag para escolher.
+- **Vídeo de verdade**: o arquivo sobe enquanto você escreve a legenda e retoma de onde parou se a conexão cair. O vídeo vira HLS com várias qualidades, ganha capa e legenda automática, e o player troca de qualidade conforme a internet. O modo "Economizar dados" segura tudo em 360.
+- **Lives** pelo navegador ou pelo OBS. Quando acabam, a gravação vira vídeo comum.
 - **Shorts** com um anúncio a cada 6. A receita é dividida entre os criadores do bloco, pelo tempo assistido, e a tela mostra o rateio na hora.
 - **Vídeos** com anúncio só nos pontos que o criador escolheu. Quem é bronze não monetiza.
 - **Anúncio regional**, mais barato, para quem é da mesma cidade do anunciante.
 - **Painel do criador** com o pagamento por faixas decrescentes, calculado como no imposto de renda.
-- **Transparência**: versão do motor, hash e conteúdo dos parâmetros em uso, números da rede e biblioteca pública de anúncios.
+- **Transparência**: versão do motor, hash e conteúdo dos parâmetros em uso, números da rede, biblioteca pública de anúncios e quanto custa uma hora de vídeo.
 
 O que ainda é simulado ou não existe está listado no fim do [roteiro da demonstração](docs/demo.md#o-que-é-real-e-o-que-é-simulado).
 

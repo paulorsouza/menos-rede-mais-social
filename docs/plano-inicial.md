@@ -17,7 +17,7 @@ A demonstração foi construída na frente das fases, tocando partes da 1 à 4, 
 | 0 · Manifesto e comunidade | Quase pronta. Faltam contribuidores de fora e o conselho provisório |
 | 1 · Protótipo | Pronta na demo, com o gov.br de homologação já integrado. Faltam as credenciais do gov.br, uma fonte confiável de idade e o grupo de teste |
 | 2 · Algoritmos e transparência | Feed conferível de ponta a ponta: registro público, recibo assinado, retratos do grafo, verificador aberto e build reproduzível. Faltam escala, gRPC e alguém de fora fazer o caminho todo |
-| 3 · Vídeo | Upload, player e shorts prontos. Faltam transcodificação, armazenamento de objetos, CDN e lives |
+| 3 · Vídeo | Vídeo em HLS, envio que retoma, legendas automáticas, lives e custo por hora medido. Faltam o orçamento que fecha o portão e uma CDN de verdade |
 | 4 · Anúncios e pagamentos | Regras do dinheiro prontas no motor. Faltam venda de campanhas, cobrança, PIX e auditoria |
 | 5 · Piloto | Depende de alguém levar a ideia adiante |
 
@@ -44,7 +44,7 @@ A rede tem três módulos sob um perfil único. Só o módulo de vídeo tem anú
 | Texto curto | Frases rápidas de até 140 caracteres | Curtir; sem respostas; repostar em aberto | Não |
 | Vídeos | Vídeos gravados de qualquer duração | Curtir, comentar, salvar | Nos pontos que o criador marcar |
 | Shorts | Vídeos verticais curtos em sequência | Curtir, comentar, salvar | 1 anúncio a cada 6 shorts |
-| Lives | Transmissão ao vivo, com gravação opcional | Chat ao vivo (proposta) | A definir |
+| Lives | Transmissão ao vivo pelo navegador ou pelo OBS; a gravação vira vídeo | Curtir; chat ao vivo (proposta) | Não, por enquanto |
 
 Requisitos que valem para todos os módulos:
 
@@ -72,7 +72,7 @@ Como a identidade fica protegida:
 - **Sem CPF guardado em texto.** A rede guarda só uma impressão digital do CPF, gerada com uma chave secreta. Ela serve para impedir contas duplicadas. Além dela, existe só uma cópia cifrada do CPF, usada exclusivamente para ordens judiciais (veja abaixo).
 - **Só o necessário.** Do gov.br vem apenas o identificador, a faixa de idade e o nível da conta. Como o perfil usa apelido, o nome real não é lido nem guardado.
 - **Nem o gov.br nem quem paga a rede veem o que você posta.** O gov.br só fica sabendo que houve um login. Pedidos de dados por autoridades exigem ordem judicial, e o total de pedidos sai no relatório de transparência.
-- **Menores de idade.** Perfil privado por padrão e sem anúncios, conforme a legislação de proteção de crianças e adolescentes on-line.
+- **Menores de idade.** Perfil privado por padrão, sem anúncios e sem live, conforme a legislação de proteção de crianças e adolescentes on-line.
 
 Decidido: o perfil público usa apelido, com um selo que mostra que a conta é de uma pessoa verificada. O nome real do gov.br não aparece para ninguém na rede.
 
@@ -201,7 +201,7 @@ Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês
 
 ```mermaid
 flowchart TB
-    app["App mobile<br/>React Native (proposta)"] --> cdn
+    app["App no celular<br/>site instalável (PWA)"] --> cdn
     web["Web<br/>React"] --> cdn
     cdn["CDN e borda<br/>entrega fotos e vídeos e filtra ataques"] --> elixir
     elixir["Backend Elixir (Phoenix)<br/>API, login gov.br, tempo real, filas, moderação e pagamentos"]
@@ -209,11 +209,14 @@ flowchart TB
     elixir --> pix["PIX<br/>repasse a criadores"]
     elixir --> rust
     elixir --> dados
+    elixir --> video
+    elixir --> lives
     subgraph rust["Serviços Rust em máquinas confidenciais (atestadas)"]
         feed["Motor de feed<br/>os modos de feed e o por que vejo isto"]
         ads["Motor de anúncios<br/>exibições, views e rateio"]
-        media["Vídeo e lives<br/>transcodificação e ingestão"]
     end
+    video["Fila de vídeo<br/>ffmpeg: HLS, capas e legendas (whisper.cpp)"] --> dados
+    lives["Lives<br/>MediaMTX: entra por WebRTC ou RTMP, sai em HLS"] --> video
     rust --> dados
     subgraph dados["Dados"]
         pg["PostgreSQL<br/>contas, posts, views"]
@@ -224,15 +227,18 @@ flowchart TB
     auditores --> log
 ```
 
-O backend em Elixir atende o app e a web e orquestra tudo. O que precisa ser auditado (feed e anúncios) e o processamento pesado de vídeo rodam em Rust, em máquinas cuja atestação qualquer auditor confere contra o log público.
+O backend em Elixir atende o app e a web e orquestra tudo. O que precisa ser auditado (feed e anúncios) roda em Rust, em máquinas cuja atestação qualquer auditor confere contra o log público.
+
+O vídeo é convertido pelo ffmpeg numa fila de trabalhos. Converter não decide nada sobre ninguém, então não precisa de motor auditável: precisa de máquinas com processador e disco, que recebem os envios e rodam a fila `video`. As outras máquinas do backend sobem com essa fila desligada.
 
 - **Elixir e Rust conversam por gRPC**, como serviços separados. Uma falha em Rust não derruba o backend.
 - **PostgreSQL** com as tabelas grandes (posts e views) particionadas por mês e réplicas de leitura para o feed.
 - **Filas com Oban**, que roda sobre o próprio PostgreSQL e evita mais um sistema para operar.
 - **Vídeo** em várias resoluções, entregue por HLS, com codecs eficientes para economizar banda.
+- **Fotos e vídeos** num armazenamento de objetos no padrão S3, atrás de uma CDN.
 - **Hospedagem:** fica com quem for operar a rede, em nuvem pública, comercial ou em data center próprio.
 
-Na demonstração de hoje, o backend conversa com o motor em JSON, com os mesmos campos dos contratos em `proto/`. Os arquivos ficam em disco local, e ainda não existem Oban, tabelas particionadas, réplicas nem CDN. Tudo sobe com Docker Compose: banco, motor, backend e web.
+Na demonstração de hoje, o backend conversa com o motor em JSON, com os mesmos campos dos contratos em `proto/`. As fotos e os vídeos ficam no Garage (S3, feito em Rust e com licença AGPL), com um nginx fazendo o papel da CDN, e a fila de vídeo roda no Oban. Ainda não existem tabelas particionadas. Tudo sobe com Docker Compose: banco, motor, armazenamento, borda, servidor de lives, backend e web; as legendas automáticas ficam num perfil opcional, porque o modelo é grande.
 
 ## 8. Segurança com código aberto
 
@@ -367,18 +373,25 @@ Portão: custo por hora de vídeo medido e dentro do orçamento.
 
 Feito:
 
-- Vídeos e shorts com envio, player e feed próprio de shorts.
-- Vídeo em pé de até 3 minutos vira short sozinho.
-- Vídeos de exemplo gerados automaticamente para a demonstração.
+- Fotos e vídeos num armazenamento de objetos no padrão S3 (na demo, o Garage), com uma borda na frente fazendo o papel da CDN.
+- Vídeo convertido em HLS por uma fila que chama o ffmpeg: H.264 e AAC, em até cinco qualidades (de 240 a 1080), só até o tamanho do vídeo enviado. O player troca de qualidade conforme a internet aguenta. Os degraus e os limites estão em `params/video.toml`, com o hash na página de transparência.
+- O tipo do post é decidido no servidor, pelo próprio arquivo. O post de vídeo nasce "processando" e só aparece para os outros quando a conversão termina.
+- Envio que retoma de onde parou (protocolo tus): o arquivo sobe em pedaços enquanto a pessoa escreve a legenda e, se a conexão cair, continua dali, até depois de recarregar a página.
+- Fotos sem os metadados da câmera, inclusive a localização do GPS.
+- Modo econômico de dados: nada do vídeo é baixado antes do play e a qualidade não passa de 360. Ele liga sozinho quando o celular pede economia ou a conexão é 2G.
+- Legendas automáticas com o whisper.cpp rodando dentro da rede: nenhum áudio sai para empresa de fora. Nos shorts, que começam sem som, a legenda aparece sozinha.
+- Lives pelo navegador (WebRTC) ou pelo OBS (RTMP), entregues em HLS de baixa latência. O backend autoriza cada conexão pela chave da live, e a gravação vira vídeo comum quando a live acaba. Menor de idade não faz live.
+- Custo por hora de vídeo medido e publicado na transparência, ao lado do teto que os parâmetros permitem. Na demo, converter uma hora de vídeo gasta perto de uma hora de processador (R$ 0,24 com os preços ilustrativos), e guardar por um ano uma hora enviada em 1080 custa no máximo R$ 7,07.
 
 Falta:
 
-- Transcodificação em várias resoluções e entrega por HLS. Hoje o vídeo é servido do jeito que chegou.
-- Armazenamento de objetos no padrão S3, no lugar do disco local, e CDN.
-- Envio que retoma de onde parou e modo econômico de dados.
-- Legendas automáticas.
-- Lives.
-- Medir o custo por hora de vídeo.
+- O orçamento, que fecha o portão. O custo já é medido; falta alguém dizer quanto pode gastar, e isso depende de quem operar a rede.
+- Medir com vídeos de verdade. Os da demo são gerados e simples, então ficam bem abaixo do teto.
+- CDN de verdade, com remoção imediata. Na demo, um arquivo apagado some da borda em até 5 minutos; numa CDN, a rede chama a API de remoção na hora.
+- Endereço assinado e com prazo para a mídia de menores. Hoje o endereço é aleatório, mas quem tiver o link consegue abrir.
+- Legendas melhores. O modelo padrão (small) erra palavras difíceis e às vezes inventa texto em áudio curto ou sem fala. Dá para usar um modelo maior e deixar quem publicou corrigir a legenda.
+- Chat e anúncios nas lives, que estão em aberto.
+- Codecs mais eficientes (AV1) para gastar menos banda, quando os aparelhos simples tocarem.
 
 ### Fase 4 · Anúncios e pagamentos
 
@@ -428,7 +441,7 @@ O risco mais sério é a rede passar a ser vista como ferramenta de quem paga, o
 | Captura política | Perda total de confiança | Conselho com mandatos descasados, algoritmo verificável, moderação contestável e relatórios públicos |
 | Desligamento por quem paga | A rede some com o conteúdo de todos | Base legal, orçamento plurianual, exportação de dados e código que outros podem operar |
 | Medo de vigilância pelo gov.br | Pessoas evitam se cadastrar | CPF aberto só por ordem judicial e com 3 de 5 guardiões, dados mínimos, auditoria externa |
-| Custo de vídeo | Orçamento estoura | Limites de upload por conta, codecs eficientes, cache nos pontos de troca de tráfego (IX.br), parte dos anúncios para o fundo |
+| Custo de vídeo | Orçamento estoura | Custo por hora medido e publicado, degraus só até o tamanho enviado, original não guardado, limites de envio, codecs eficientes, cache nos pontos de troca de tráfego (IX.br), parte dos anúncios para o fundo |
 | Pouca adesão | Rede vazia, criadores não migram | Começar por quem ganha mais aqui: criadores pequenos e comércio local; importação de conteúdo de outras redes |
 | Insegurança jurídica | Processos e remoções forçadas | Revisão jurídica antes do piloto, regras claras, canal formal para pedidos |
 | Fraude de views | Pagamentos injustos | Uma pessoa por conta, tempo mínimo assistido, auditoria de padrões, provas de pagamento |
@@ -453,6 +466,9 @@ Já decidido:
 - [x] App de celular da Fase 1: o site instalável (PWA), sem app nativo
 - [x] Menor de idade: perfil privado (seguir de volta é aprovar), sem anúncio e sem receber por anúncio
 - [x] Idade desconhecida conta como menor, até existir uma fonte confiável
+- [x] Vídeo em HLS (H.264 e AAC), com os degraus de qualidade em `params/video.toml`. O original não fica guardado: guardar custa, e os degraus bastam
+- [x] Legendas automáticas com o whisper.cpp rodando dentro da rede, sem mandar áudio para fora
+- [x] Menor de idade não faz live
 
 Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
 
@@ -463,7 +479,8 @@ Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem espe
 - [ ] Modo padrão do feed para quem acabou de chegar (a demo usa meio a meio)
 - [ ] Pesos do grafo: janela de 90 dias, 10 segundos de vídeo, 2 posts em comum e 10% de sobreposição para virar vizinho são o ponto de partida
 - [ ] Rateio dos shorts por tempo assistido (como está na demo) ou em partes iguais
-- [ ] Anúncios em lives
+- [ ] Anúncios em lives (hoje, sem anúncio)
+- [ ] Orçamento por hora de vídeo, que fecha o portão da Fase 3
 - [ ] Faixas e percentuais do pagamento decrescente
 - [ ] Destino da diferença das faixas: fundo de infraestrutura ou bônus para criadores pequenos
 - [ ] Proporção da receita entre criador e fundo de infraestrutura

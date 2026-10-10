@@ -10,7 +10,14 @@ Suba tudo com um comando, na raiz do repositório:
 docker compose up --build
 ```
 
-Na primeira vez demora alguns minutos: o motor em Rust é compilado, as dependências são baixadas e os vídeos de exemplo são gerados. Depois, abra http://localhost:5173.
+Na primeira vez demora alguns minutos: o motor em Rust é compilado, as dependências são baixadas e os vídeos de exemplo são gerados e convertidos. Depois, abra http://localhost:5173.
+
+Para mostrar as legendas automáticas, suba com o perfil delas (o modelo de fala, de 466 MB, é baixado só na primeira vez) e recrie a demo depois, para os vídeos de exemplo saírem legendados:
+
+```bash
+docker compose --profile legendas up --build
+docker compose exec backend mix demo.reset
+```
 
 Para voltar a demo ao estado inicial (apaga posts, contas novas e mídias, e recria tudo):
 
@@ -56,6 +63,11 @@ Todas são fictícias, assim como os anunciantes e os valores.
 15. **Ordem judicial.** Entre como o Rui, abra "Ordens judiciais" e registre uma ordem para `maria.silva`. Toque em dois guardiões: o "Abrir" continua travado. Toque no terceiro e abra: o CPF e os acessos aparecem uma única vez. Mostre na transparência que a abertura entrou no registro com o juízo e a data, sem o apelido de ninguém, e o hash do `params/guardioes.toml`.
 16. **Seus dados.** No menu da conta, "Seus dados" baixa um arquivo com tudo o que a rede guarda e apaga a conta. O arquivo não tem CPF, porque a rede não guarda o número.
 17. **Conferir o feed sem confiar na rede.** Como a Maria, toque no chip do motor e em "Baixar a conta deste feed". Na transparência, baixe as entradas do registro. No terminal, rode `cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json` dentro de `services/`: o verificador refaz a ordem do feed, confere o recibo assinado pelo motor e mostra que cada curtida usada estava no retrato do grafo publicado. Mude um número no arquivo e rode de novo: ele aponta o que não confere.
+18. **Publicar um vídeo.** Como a Maria, anexe um vídeo no campo de publicar. A barra no pé do vídeo é o envio, que começa na hora, enquanto você escreve a legenda; se a conexão cair, ele continua de onde parou. Publique: o post aparece "processando" só para você e, segundos depois, vira vídeo com capa. Na transparência, a seção de custo mostra quanto cada vídeo convertido gastou.
+19. **Economizar dados.** No menu da conta, ligue "Economizar dados": o player não passa de 360 e nada é baixado antes do play. Num celular com economia de dados ou em 2G, o modo já começa ligado.
+20. **Legendas.** Com o perfil de legendas, os vídeos de exemplo têm uma voz sintética lendo a legenda do post. Nos shorts, que começam sem som, a legenda automática aparece sozinha. A voz é robótica, então o whisper erra mais do que erraria com gente falando.
+21. **Live.** No campo de publicar, o ícone de antena abre a tela de live: a câmera aparece e "Começar live" põe no ar. Numa janela anônima, entre como a Rafa, que segue a Maria: a live aparece no topo de Vídeos, com o selo "Ao vivo". Encerre: em alguns segundos a gravação vira vídeo no perfil da Maria. "Transmitir pelo OBS" mostra o servidor e a chave.
+22. **Quanto custa uma hora de vídeo.** Na transparência, a tabela mostra o medido nos vídeos da demo ao lado do teto que `params/video.toml` permite: guardar, converter e entregar em cada qualidade.
 
 ## O que é real e o que é simulado
 
@@ -66,6 +78,7 @@ Funciona de verdade nesta demo:
 - A impressão digital do CPF, que impede contas duplicadas sem guardar o número.
 - O cofre do CPF: cada conta tem o CPF selado com a chave dos guardiões, e a ordem judicial abre com 3 de 5, com as provas conferidas pelo motor. Só as fatias dos guardiões são de teste, para a demo funcionar sem as instituições.
 - O registro público, o recibo assinado de cada feed, os retratos do grafo e o verificador aberto. O build do motor com Nix é reproduzível.
+- O vídeo: armazenamento S3 (Garage), conversão em HLS na fila, envio que retoma, capas, legendas automáticas, modo econômico, lives com gravação e o custo por hora medido.
 - Os registros de acesso com o IP selado, a moderação com recurso, as regras de menores, baixar os dados e apagar a conta.
 - As regras de publicação: conta básica não publica, e só prata ou ouro recebe por anúncios.
 
@@ -74,4 +87,5 @@ Funciona de verdade nesta demo:
 - O gov.br (o Login Único já está integrado, mas sem credencial a demo usa o simulado), os CPFs, as pessoas, os anunciantes e os valores.
 - As fatias dos guardiões, que na demo ficam em `services/cofre/demo/` e no piloto ficam nos cofres de hardware de cada instituição.
 - A atestação de hardware, que só faz sentido com a rede rodando em servidores de verdade.
-- A transcodificação dos vídeos: aqui eles são servidos do jeito que foram enviados.
+- A CDN: na demo, um nginx faz o papel dela. Os preços da conta de custo por hora são ilustrativos.
+- Os vídeos de exemplo, gerados pelo ffmpeg, e a voz deles, sintética.
