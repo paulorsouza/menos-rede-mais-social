@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from 'react'
-import { Clapperboard, Film, Image, ImagePlus, X } from 'lucide-react'
+import { Clapperboard, Film, Image, ImagePlus, Radio, X } from 'lucide-react'
+import { useNavigate } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 import { ApiError, api } from '../api'
 import { useApp } from '../app-context'
 import type { Post, PostKind } from '../types'
+import { startUpload } from '../upload'
+import type { UploadHandle } from '../upload'
 import { Avatar } from './Avatar'
 
 const TEXT_LIMIT = 140
@@ -15,7 +18,7 @@ const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,v
 // porque short é feito para passar um atrás do outro.
 const SHORT_MAX_SECONDS = 180
 
-const KIND_LABEL: Record<Exclude<PostKind, 'text'>, { label: string; icon: LucideIcon }> = {
+const KIND_LABEL: Record<Exclude<PostKind, 'text' | 'live'>, { label: string; icon: LucideIcon }> = {
   photo: { label: 'Foto', icon: Image },
   video: { label: 'Vídeo', icon: Film },
   short: { label: 'Short', icon: Clapperboard },
@@ -32,20 +35,26 @@ interface Attachment {
   url: string
   // Vídeo fica sem tipo até o navegador ler a largura, a altura e a duração.
   kind: PostKind | null
+  // Quanto do arquivo já chegou no servidor (de 0 a 1).
+  progress: number
 }
 
 function attach(file: File): Attachment | null {
-  if (file.type.startsWith('image/')) return { file, url: URL.createObjectURL(file), kind: 'photo' }
-  if (file.type.startsWith('video/')) return { file, url: URL.createObjectURL(file), kind: null }
+  if (file.type.startsWith('image/')) return { file, url: URL.createObjectURL(file), kind: 'photo', progress: 0 }
+  if (file.type.startsWith('video/')) return { file, url: URL.createObjectURL(file), kind: null, progress: 0 }
   return null
 }
 
 /**
  * Um campo só para tudo. O tipo do post sai do arquivo anexado, e não existe
  * tema nem tag: quem publica não precisa escolher nada.
+ *
+ * O arquivo começa a subir assim que é escolhido, enquanto a pessoa escreve
+ * a legenda, e retoma sozinho se a conexão cair (upload.ts).
  */
 export function Composer({ inline = false, onPublished }: { inline?: boolean; onPublished?: (post: Post) => void }) {
   const { me, toast, addPublished } = useApp()
+  const navigate = useNavigate()
   const [body, setBody] = useState('')
   const [attachment, setAttachment] = useState<Attachment | null>(null)
   const [ads, setAds] = useState(true)
@@ -57,12 +66,16 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
+  const upload = useRef<UploadHandle | null>(null)
 
+  const attachmentUrl = attachment?.url
   useEffect(() => {
-    if (!attachment) return
-    const { url } = attachment
-    return () => URL.revokeObjectURL(url)
-  }, [attachment])
+    if (!attachmentUrl) return
+    return () => URL.revokeObjectURL(attachmentUrl)
+  }, [attachmentUrl])
+
+  // Saiu da tela com um envio pela metade: desiste dele.
+  useEffect(() => () => upload.current?.cancel(), [])
 
   if (!me?.can_publish) return null
 
@@ -80,9 +93,18 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
       setError('Só dá para anexar foto ou vídeo.')
       return
     }
+    upload.current?.cancel()
     setError(null)
     setAttachment(next)
     textarea.current?.focus()
+
+    const handle = startUpload(file, (progress) =>
+      setAttachment((current) => (current?.file === file ? { ...current, progress } : current)),
+    )
+    upload.current = handle
+    handle.done.catch((e: Error) => {
+      if (upload.current === handle) setError(e.message)
+    })
   }
 
   function onVideoMetadata(video: HTMLVideoElement) {
@@ -104,6 +126,8 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
   }
 
   function removeAttachment() {
+    upload.current?.cancel()
+    upload.current = null
     setAttachment(null)
     setAltText(null)
     setAds(true)
@@ -118,16 +142,19 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
     setSending(true)
     setError(null)
 
-    const form = new FormData()
-    form.append('kind', kind)
-    form.append('body', body)
-    if (attachment) form.append('media', attachment.file)
-    if (kind === 'photo' && altText?.trim()) form.append('alt_text', altText.trim())
-    if (kind === 'video' && ads && me!.can_monetize) markers.forEach((marker) => form.append('ad_markers[]', marker))
-    if (kind === 'short') form.append('monetized', String(ads && me!.can_monetize))
-
     try {
-      const { post } = await api.createPost(form)
+      // Se o arquivo ainda está subindo, espera terminar antes de publicar.
+      const uploadId = upload.current ? await upload.current.done : undefined
+      const { post } = await api.createPost({
+        kind,
+        body,
+        upload_id: uploadId,
+        alt_text: kind === 'photo' && altText?.trim() ? altText.trim() : undefined,
+        ad_markers: kind === 'video' && ads && me!.can_monetize ? markers : undefined,
+        monetized: kind === 'short' ? ads && me!.can_monetize : undefined,
+      })
+      // O envio virou post: não há mais nada para cancelar.
+      upload.current = null
       addPublished(post)
       setBody('')
       removeAttachment()
@@ -167,7 +194,7 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
     pick(event.dataTransfer.files[0])
   }
 
-  const Kind = attachment?.kind && attachment.kind !== 'text' ? KIND_LABEL[attachment.kind] : null
+  const Kind = attachment?.kind && attachment.kind !== 'text' && attachment.kind !== 'live' ? KIND_LABEL[attachment.kind] : null
 
   return (
     <form
@@ -226,6 +253,16 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
             <button type="button" className="attachment-remove" aria-label="Tirar anexo" onClick={removeAttachment}>
               <X size={16} />
             </button>
+            {attachment.progress < 1 && (
+              <span
+                className="upload-bar"
+                role="progressbar"
+                aria-label="Envio do arquivo"
+                aria-valuenow={Math.round(attachment.progress * 100)}
+              >
+                <span style={{ width: `${attachment.progress * 100}%` }} />
+              </span>
+            )}
           </div>
         )}
 
@@ -282,6 +319,17 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
             <button type="button" className="icon-btn" aria-label="Anexar foto ou vídeo" onClick={() => fileInput.current?.click()}>
               <ImagePlus size={20} />
             </button>
+            {me.can_go_live && !attachment && (
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Fazer uma live"
+                title="Fazer uma live"
+                onClick={() => navigate('/transmitir', { state: { body } })}
+              >
+                <Radio size={20} />
+              </button>
+            )}
             <span className="composer-spacer" />
             {remaining <= 20 && (
               <span className={`counter ${remaining < 0 ? 'is-over' : 'is-near'}`}>{remaining}</span>
@@ -292,7 +340,11 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
               disabled={!canSend}
               title="Ctrl + Enter"
             >
-              {sending ? 'Publicando…' : 'Publicar'}
+              {sending
+                ? attachment && attachment.progress < 1
+                  ? `Enviando ${Math.floor(attachment.progress * 100)}%`
+                  : 'Publicando…'
+                : 'Publicar'}
             </button>
           </div>
         )}

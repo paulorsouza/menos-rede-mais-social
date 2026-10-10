@@ -6,7 +6,7 @@ import { PageHead } from '../components/Layout'
 import { InfoTip } from '../components/Popover'
 import type { PostKind } from '../types'
 
-const DESTINATION: Record<PostKind, string> = { text: '/', photo: '/', video: '/videos', short: '/shorts' }
+const DESTINATION: Record<PostKind, string> = { text: '/', photo: '/', video: '/videos', short: '/shorts', live: '/videos' }
 
 export function CreatePage() {
   const { me } = useApp()

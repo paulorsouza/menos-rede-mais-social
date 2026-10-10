@@ -6,7 +6,7 @@ import { InfoTip } from '../components/Popover'
 import { ErrorState, Loading } from '../components/States'
 import { formatCompact, formatDate, formatMoney } from '../format'
 import { REPO_URL, RULES_URL } from '../links'
-import type { ParamsFile, Registro, TransparencyReport } from '../types'
+import type { ParamsFile, Registro, TransparencyReport, VideoCosts } from '../types'
 
 export function TransparencyPage() {
   const [report, setReport] = useState<TransparencyReport | null>(null)
@@ -74,6 +74,8 @@ export function TransparencyPage() {
       </section>
 
       <RegistroSection />
+      <VideoCostSection costs={report.video.costs} />
+      <ParamsCard file={report.video.params} title="Vídeo" />
       <Rules report={report} />
       <Identifications report={report} />
 
@@ -171,6 +173,65 @@ function RegistroSection() {
           Baixar as entradas
         </a>
       </nav>
+    </section>
+  )
+}
+
+const cents = (value: number | undefined) => (value === undefined ? '—' : formatMoney(value))
+
+/**
+ * Quanto custa uma hora de vídeo: o que os vídeos convertidos realmente
+ * ocuparam e gastaram, ao lado do teto que os parâmetros permitem.
+ */
+function VideoCostSection({ costs }: { costs: VideoCosts }) {
+  const { measured, ceiling, prices } = costs
+  const watched = new Map((measured.watch ?? []).map((row) => [row.short_side, row]))
+
+  return (
+    <section id="video">
+      <div className="params-head">
+        <h2 className="section-label">Quanto custa uma hora de vídeo</h2>
+        <InfoTip label="Como a conta é feita">
+          Medido: o espaço e o tempo de processador que os vídeos já convertidos gastaram, por hora de vídeo. Teto: o
+          máximo que o bitrate de cada qualidade em <code>params/video.toml</code> permite. Os preços (
+          {formatMoney(prices.storage_cents_per_gb_month)} por GB ao mês, {formatMoney(prices.egress_cents_per_gb)} por
+          GB entregue, {formatMoney(prices.cpu_cents_per_hour)} por hora de processador) são ilustrativos até alguém
+          operar a rede.
+        </InfoTip>
+      </div>
+      <table className="table cost-table">
+        <thead>
+          <tr>
+            <td />
+            <td>Medido</td>
+            <td>Teto</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Guardar por {prices.months_stored} meses</td>
+            <td>{cents(measured.store_cents)}</td>
+            <td>{cents(ceiling.store_cents)}</td>
+          </tr>
+          <tr>
+            <td>Converter</td>
+            <td>{cents(measured.transcode_cents)}</td>
+            <td>—</td>
+          </tr>
+          {ceiling.watch.map((row) => (
+            <tr key={row.short_side}>
+              <td>Assistir em {row.short_side}</td>
+              <td>{cents(watched.get(row.short_side)?.cents)}</td>
+              <td>{cents(row.cents)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="rules-foot">
+        {measured.videos > 0
+          ? `Medido em ${measured.videos} ${measured.videos === 1 ? 'vídeo' : 'vídeos'} (${Math.round(measured.hours * 60)} min).`
+          : 'Nenhum vídeo convertido ainda.'}
+      </p>
     </section>
   )
 }

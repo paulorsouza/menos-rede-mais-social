@@ -3343,3 +3343,188 @@ section[id] {
 #registro .footer-links {
   margin: 14px 0 22px;
 }
+
+/* Fase 3: envio com barra, vídeo processando, capa e duração. */
+.upload-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+.upload-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #16a34a);
+  transition: width 0.3s var(--ease);
+}
+
+.media-pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  padding: 16px;
+  color: var(--faint);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.video-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s var(--ease);
+}
+
+.video-card:hover img {
+  transform: scale(1.03);
+}
+
+.video-duration {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.65);
+  color: #fff;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-switch {
+  margin-left: auto;
+}
+
+.short-pending {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: #fff;
+  text-align: center;
+}
+
+.cost-table thead td {
+  padding-top: 0;
+  color: var(--faint);
+  font-size: 0.78rem;
+}
+
+.cost-table td + td {
+  text-align: right;
+  width: 6.5rem;
+}
+
+/* Lives. */
+.live-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: var(--round);
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-card {
+  position: relative;
+}
+
+.live-card .live-badge {
+  top: 22px;
+}
+
+.live-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+
+.live-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.live-title {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.live-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.live-stage + .live-title + .btn,
+.live-title + .btn {
+  margin-top: 12px;
+}
+
+.live-done {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  margin-top: 16px;
+}
+
+.live-obs {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.copy-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.copy-field span {
+  grid-column: 1 / -1;
+  color: var(--faint);
+  font-size: 0.78rem;
+}
+
+.copy-field code {
+  overflow-wrap: anywhere;
+}
+
+.live-actions .text-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}

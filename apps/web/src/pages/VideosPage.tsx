@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router'
-import { Play, X } from 'lucide-react'
+import { Play, Radio, X } from 'lucide-react'
 import { api } from '../api'
 import { useApp } from '../app-context'
 import { Avatar, Verified } from '../components/Avatar'
@@ -9,7 +9,8 @@ import { PageHead } from '../components/Layout'
 import { ModePicker } from '../components/ModePicker'
 import { InfoTip } from '../components/Popover'
 import { Empty, ErrorState, Loading } from '../components/States'
-import { formatCompact, timeAgo } from '../format'
+import { VideoView } from '../components/VideoView'
+import { formatCompact, formatDuration, timeAgo } from '../format'
 import type { Ad, FeedResponse, Post } from '../types'
 
 const MARKER_LABEL: Record<string, string> = { start: 'início', middle: 'meio', end: 'fim' }
@@ -35,7 +36,9 @@ export function VideosPage() {
   }, [mode])
 
   const fresh = published.filter((post) => post.kind === 'video' && !feed?.items.some((item) => item.id === post.id))
-  const videos = [...fresh, ...(feed?.items ?? [])]
+  // Lives no ar vêm primeiro; a ordem do resto é a do motor.
+  const items = feed?.items ?? []
+  const videos = [...items.filter((post) => post.kind === 'live'), ...fresh, ...items.filter((post) => post.kind !== 'live')]
 
   return (
     <div className="page page-wide">
@@ -51,10 +54,17 @@ export function VideosPage() {
         {videos.map((post) => (
           <button key={post.id} type="button" className="video-card" onClick={() => setPlaying(post)}>
             <span className="video-thumb">
-              {post.media_url && <video src={post.media_url} preload="metadata" muted />}
+              {post.poster_url && <img src={post.poster_url} alt="" loading="lazy" />}
               <span className="video-play">
                 <Play size={18} fill="currentColor" />
               </span>
+              {post.kind === 'live' ? (
+                <span className="live-badge">
+                  <Radio size={14} /> Ao vivo
+                </span>
+              ) : (
+                post.duration_ms !== null && <span className="video-duration">{formatDuration(post.duration_ms)}</span>
+              )}
             </span>
             <span className="video-title">{post.body}</span>
             <span className="video-meta">
@@ -78,14 +88,13 @@ function VideoPlayer({ post, ad, onClose }: { post: Post; ad: Ad | null; onClose
   const furthest = useRef(0)
   const [adMoment, setAdMoment] = useState<AdMoment | null>(null)
   const [countdown, setCountdown] = useState(AD_SECONDS)
-
   // Anúncio no início entra antes do vídeo; sem ele, o vídeo começa direto.
+  const [startsNow] = useState(!markers.includes('start'))
+
   useEffect(() => {
     if (markers.includes('start')) {
       shown.current.add('start')
       setAdMoment('start')
-    } else {
-      videoRef.current?.play().catch(() => undefined)
     }
   }, [])
 
@@ -137,16 +146,14 @@ function VideoPlayer({ post, ad, onClose }: { post: Post; ad: Ad | null; onClose
     <div className="modal" role="dialog" aria-modal="true" aria-label={post.body ?? 'Vídeo'} onClick={close}>
       <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
         <div className="player">
-          {post.media_url && (
-            <video
-              ref={videoRef}
-              src={post.media_url}
-              controls={!adMoment}
-              playsInline
-              onTimeUpdate={onTimeUpdate}
-              onEnded={onEnded}
-            />
-          )}
+          <VideoView
+            ref={videoRef}
+            post={post}
+            playing={startsNow || undefined}
+            controls={!adMoment}
+            onTimeUpdate={onTimeUpdate}
+            onEnded={onEnded}
+          />
           {adMoment && ad && (
             <div className="player-ad" style={{ '--ad-color': ad.color ?? '#16a34a' } as CSSProperties}>
               <span className="tag tag-dark">
@@ -174,18 +181,21 @@ function VideoPlayer({ post, ad, onClose }: { post: Post; ad: Ad | null; onClose
           </Link>
           <p>{post.body}</p>
 
-          <div className="markers">
-            <span className="markers-bar">
-              {['start', 'middle', 'end'].map((marker) => (
-                <span key={marker} className={`marker marker-${marker} ${markers.includes(marker) ? 'is-on' : ''}`} />
-              ))}
-            </span>
-            <InfoTip label="Anúncios neste vídeo">
-              {markers.length > 0
-                ? `O criador escolheu anúncio no ${markers.map((m) => MARKER_LABEL[m]).join(' e no ')}. Ele recebe por view, pelas faixas públicas.`
-                : 'O criador escolheu não ter anúncio neste vídeo. Sem anúncio, ele também não recebe.'}
-            </InfoTip>
-          </div>
+          {/* Live não tem anúncio. */}
+          {post.kind !== 'live' && (
+            <div className="markers">
+              <span className="markers-bar">
+                {['start', 'middle', 'end'].map((marker) => (
+                  <span key={marker} className={`marker marker-${marker} ${markers.includes(marker) ? 'is-on' : ''}`} />
+                ))}
+              </span>
+              <InfoTip label="Anúncios neste vídeo">
+                {markers.length > 0
+                  ? `O criador escolheu anúncio no ${markers.map((m) => MARKER_LABEL[m]).join(' e no ')}. Ele recebe por view, pelas faixas públicas.`
+                  : 'O criador escolheu não ter anúncio neste vídeo. Sem anúncio, ele também não recebe.'}
+              </InfoTip>
+            </div>
+          )}
         </div>
       </div>
     </div>

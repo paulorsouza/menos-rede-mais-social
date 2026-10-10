@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Bookmark, Compass, Eye, Flag, Flame, Heart, UserCheck, Users, UsersRound } from 'lucide-react'
+import { Bookmark, Compass, Eye, Flag, Flame, Heart, LoaderCircle, Radio, UserCheck, Users, UsersRound } from 'lucide-react'
 import { ApiError, api } from '../api'
 import { useApp } from '../app-context'
 import { formatCompact, timeAgo } from '../format'
@@ -8,6 +8,7 @@ import { loadRules } from '../rules'
 import type { Author, Post, Reason, Rule } from '../types'
 import { Avatar, Verified } from './Avatar'
 import { Popover } from './Popover'
+import { VideoView } from './VideoView'
 
 export function usePostActions(initial: Post) {
   const [post, setPost] = useState(initial)
@@ -28,7 +29,52 @@ export function usePostActions(initial: Post) {
     toast(result.saved ? 'Salvo' : 'Removido dos salvos')
   }
 
+  // Vídeo recém-publicado: confere de tempos em tempos se a conversão acabou.
+  useEffect(() => {
+    if (post.media_status !== 'processing') return
+    const timer = setInterval(() => {
+      api
+        .getPost(post.id)
+        .then(({ post: fresh }) => {
+          if (fresh.media_status !== 'processing') setPost((p) => ({ ...p, ...fresh }))
+        })
+        .catch(() => undefined)
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [post.id, post.media_status])
+
   return { post, like, save }
+}
+
+/** Vídeo ou short dentro de um card: a capa, e o vídeo só quando a pessoa dá play. */
+export function PostVideo({ post, className }: { post: Post; className: string }) {
+  if (post.media_status === 'processing') {
+    return (
+      <div className={`${className} media-pending`} role="status">
+        <LoaderCircle size={20} className="spin" />
+        Processando o vídeo. Só você vê este post até terminar.
+      </div>
+    )
+  }
+  if (post.media_status === 'failed') {
+    return (
+      <div className={`${className} media-pending`} role="status">
+        Não foi possível processar este vídeo. Tente enviar de novo.
+      </div>
+    )
+  }
+  if (!post.media_url) return null
+  if (post.kind === 'live') {
+    return (
+      <div className="live-card">
+        <VideoView className={className} post={post} controls aria-label={post.body ?? 'Live'} />
+        <span className="live-badge">
+          <Radio size={14} /> Ao vivo
+        </span>
+      </div>
+    )
+  }
+  return <VideoView className={className} post={post} controls aria-label={post.body ?? 'Vídeo'} />
 }
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
@@ -184,8 +230,8 @@ export function PostCard({ post: initial, showReasons = true }: { post: Post; sh
         {post.kind === 'photo' && post.media_url && (
           <img className="post-media" src={post.media_url} alt={post.alt_text ?? post.body ?? 'Foto'} loading="lazy" />
         )}
-        {(post.kind === 'video' || post.kind === 'short') && post.media_url && (
-          <video className="post-media" src={post.media_url} controls preload="metadata" aria-label={post.body ?? 'Vídeo'} />
+        {(post.kind === 'video' || post.kind === 'short' || post.kind === 'live') && (
+          <PostVideo post={post} className="post-media" />
         )}
 
         <footer className="post-actions">

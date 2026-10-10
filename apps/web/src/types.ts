@@ -21,18 +21,28 @@ export interface Me extends Author {
   govbr_level: GovBrLevel | null
   can_publish: boolean
   can_monetize: boolean
+  /** Conta verificada e maior de idade. */
+  can_go_live: boolean
   moderator: boolean
   legal_officer: boolean
   unread_notices: number
 }
 
-export type PostKind = 'text' | 'photo' | 'video' | 'short'
+export type PostKind = 'text' | 'photo' | 'video' | 'short' | 'live'
 
 export interface Post {
   id: number
   kind: PostKind
   body: string | null
+  /** Foto, ou a lista HLS do vídeo (master.m3u8). */
   media_url: string | null
+  /** Vídeo fica "processing" até a fila terminar de converter. */
+  media_status: 'ready' | 'processing' | 'failed'
+  poster_url: string | null
+  captions_url: string | null
+  duration_ms: number | null
+  width: number | null
+  height: number | null
   alt_text: string | null
   monetized: boolean
   ad_markers: string[]
@@ -130,7 +140,33 @@ export interface ParamsFile {
   source: string
 }
 
+export interface WatchCost {
+  short_side: number
+  gb_per_hour: number
+  cents: number
+}
+
+export interface VideoCosts {
+  prices: {
+    storage_cents_per_gb_month: number
+    egress_cents_per_gb: number
+    cpu_cents_per_hour: number
+    months_stored: number
+  }
+  measured: {
+    videos: number
+    hours: number
+    storage_gb_per_hour?: number
+    cpu_hours_per_hour?: number
+    store_cents?: number
+    transcode_cents?: number
+    watch?: WatchCost[]
+  }
+  ceiling: { storage_gb_per_hour: number; store_cents: number; watch: WatchCost[] }
+}
+
 export interface TransparencyReport {
+  video: { params: ParamsFile; costs: VideoCosts }
   engine: {
     status: 'ok' | 'offline'
     engine_version?: string

@@ -27,6 +27,9 @@ interface AppState {
   toast: (message: string, tone?: ToastTone) => void
   published: Post[]
   addPublished: (post: Post) => void
+  /** Modo econômico: vídeo na qualidade mais baixa e nada carregado antes da hora. */
+  dataSaver: boolean
+  setDataSaver: (on: boolean) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -44,6 +47,26 @@ function storedMode(): FeedMode {
   return 'mixed'
 }
 
+const DATA_SAVER_KEY = 'rede-social:economia-de-dados'
+
+interface NetworkInformation {
+  saveData?: boolean
+  effectiveType?: string
+}
+
+// Se a pessoa já pediu economia no celular, ou a conexão é 2G, o modo
+// econômico começa ligado sem ninguém precisar procurar a opção.
+function initialDataSaver(): boolean {
+  try {
+    const stored = localStorage.getItem(DATA_SAVER_KEY)
+    if (stored === 'on' || stored === 'off') return stored === 'on'
+  } catch {
+    // Sem armazenamento: decide pela conexão.
+  }
+  const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
+  return Boolean(connection?.saveData || connection?.effectiveType?.includes('2g'))
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)
   const [loadingMe, setLoadingMe] = useState(true)
@@ -51,6 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(initialTheme)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [published, setPublished] = useState<Post[]>([])
+  const [dataSaver, setDataSaverState] = useState(initialDataSaver)
 
   useEffect(() => {
     api
@@ -85,6 +109,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addPublished = useCallback((post: Post) => setPublished((current) => [post, ...current]), [])
 
+  const setDataSaver = useCallback((on: boolean) => {
+    setDataSaverState(on)
+    try {
+      localStorage.setItem(DATA_SAVER_KEY, on ? 'on' : 'off')
+    } catch {
+      // Sem armazenamento: vale só nesta aba.
+    }
+  }, [])
+
   const value = useMemo(
     () => ({
       me,
@@ -98,8 +131,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toast,
       published,
       addPublished,
+      dataSaver,
+      setDataSaver,
     }),
-    [me, loadingMe, logout, mode, setMode, theme, toast, published, addPublished],
+    [me, loadingMe, logout, mode, setMode, theme, toast, published, addPublished, dataSaver, setDataSaver],
   )
 
   return (

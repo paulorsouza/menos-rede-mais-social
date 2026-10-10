@@ -1,6 +1,7 @@
 import { timeAgo } from '../format'
 import type { Post } from '../types'
 import { Avatar, Verified } from './Avatar'
+import { PostVideo } from './PostCard'
 
 /**
  * O post em tamanho pequeno, sem curtir nem salvar. Serve para a moderação e
@@ -19,9 +20,7 @@ export function PostPreview({ post }: { post: Post }) {
       </header>
       {post.body && <p className="preview-text">{post.body}</p>}
       {post.kind === 'photo' && post.media_url && <img className="preview-media" src={post.media_url} alt={post.alt_text ?? post.body ?? 'Foto'} />}
-      {(post.kind === 'video' || post.kind === 'short') && post.media_url && (
-        <video className="preview-media" src={post.media_url} controls preload="metadata" aria-label={post.body ?? 'Vídeo'} />
-      )}
+      {(post.kind === 'video' || post.kind === 'short') && <PostVideo post={post} className="preview-media" />}
     </div>
   )
 }

@@ -34,6 +34,15 @@ export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+/** Duração de vídeo: 0:42, 12:05, 1:03:20. */
+export function formatDuration(ms: number): string {
+  const total = Math.round(ms / 1000)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = String(total % 60).padStart(2, '0')
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`
+}
+
 /** Iniciais e cor do avatar, sempre as mesmas para o mesmo apelido. */
 export function avatarFor(nickname: string) {
   const parts = nickname.split(/[._]/).filter(Boolean)

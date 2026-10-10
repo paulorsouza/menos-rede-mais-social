@@ -7,6 +7,7 @@ import { CreatePage } from './pages/CreatePage'
 import { CreatorPage } from './pages/CreatorPage'
 import { DataPage } from './pages/DataPage'
 import { HomePage } from './pages/HomePage'
+import { LivePage } from './pages/LivePage'
 import { LoginPage } from './pages/LoginPage'
 import { ModerationPage } from './pages/ModerationPage'
 import { NoticesPage } from './pages/NoticesPage'
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="videos" element={<RequireAccount><VideosPage /></RequireAccount>} />
             <Route path="em-alta" element={<RequireAccount><TrendingPage /></RequireAccount>} />
             <Route path="criar" element={<RequireAccount><CreatePage /></RequireAccount>} />
+            <Route path="transmitir" element={<RequireAccount><LivePage /></RequireAccount>} />
             <Route path="criador" element={<RequireAccount><CreatorPage /></RequireAccount>} />
             <Route path="avisos" element={<RequireAccount><NoticesPage /></RequireAccount>} />
             <Route path="dados" element={<RequireAccount><DataPage /></RequireAccount>} />

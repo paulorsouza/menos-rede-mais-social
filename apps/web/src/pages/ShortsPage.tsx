@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import { Link } from 'react-router'
-import { Bookmark, ChevronDown, Coins, Heart, MapPin, Volume2, VolumeX } from 'lucide-react'
+import { Bookmark, ChevronDown, Coins, Heart, LoaderCircle, MapPin, Volume2, VolumeX } from 'lucide-react'
 import { api } from '../api'
 import { useApp } from '../app-context'
 import { Avatar, Verified } from '../components/Avatar'
 import { ModePicker } from '../components/ModePicker'
 import { usePostActions } from '../components/PostCard'
 import { Empty, ErrorState, Loading } from '../components/States'
+import { VideoView } from '../components/VideoView'
 import { formatCompact, formatMoney } from '../format'
 import { useInView } from '../hooks'
 import type { Ad, Post, ShortItem, ShortsResponse } from '../types'
@@ -92,7 +93,6 @@ export function ShortsPage() {
 
 function ShortSlide({ post: initial, muted, onWatched }: { post: Post; muted: boolean; onWatched: (ms: number) => void }) {
   const [ref, inView] = useInView<HTMLElement>(0.6)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const startedAt = useRef<number | null>(null)
   const { post, like, save } = usePostActions(initial)
 
@@ -107,15 +107,8 @@ function ShortSlide({ post: initial, muted, onWatched }: { post: Post; muted: bo
   }
 
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    if (inView) {
-      video.play().catch(() => undefined)
-      startedAt.current = performance.now()
-    } else {
-      video.pause()
-      flush()
-    }
+    if (inView) startedAt.current = performance.now()
+    else flush()
   }, [inView])
 
   useEffect(() => () => flush(), [])
@@ -123,7 +116,14 @@ function ShortSlide({ post: initial, muted, onWatched }: { post: Post; muted: bo
   return (
     <section ref={ref} className="short-slide">
       <div className="short-frame">
-        {post.media_url && <video ref={videoRef} src={post.media_url} muted={muted} loop playsInline preload="metadata" />}
+        {/* Sem som, a legenda automática aparece sozinha. */}
+        {post.media_url && <VideoView post={post} playing={inView} muted={muted} loop captionsOn={muted} captionsAt={68} />}
+        {post.media_status === 'processing' && (
+          <p className="short-pending" role="status">
+            <LoaderCircle size={22} className="spin" />
+            Processando o vídeo. Só você vê este short até terminar.
+          </p>
+        )}
 
         <div className="short-side">
           <button type="button" className={`short-action ${post.liked ? 'is-liked' : ''}`} onClick={like} aria-label="Curtir">

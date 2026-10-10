@@ -62,6 +62,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) })
 
+/** Uma live aberta: os dois jeitos de transmitir. A chave só vem aqui. */
+export interface LiveInfo {
+  id: string
+  post_id: number
+  key: string
+  whip_url: string
+  /** Sem servidor configurado, o RTMP fica no mesmo endereço do app. */
+  rtmp: { server: string | null; stream_key: string }
+}
+
 export interface RegisterParams {
   cpf: string
   nickname: string
@@ -88,7 +98,16 @@ export const api = {
     request<FeedResponse>(`/feed?mode=${mode}&kind=${kind}`),
   shorts: (mode: FeedMode) => request<ShortsResponse>(`/shorts?mode=${mode}`),
 
-  createPost: (form: FormData) => request<{ post: Post }>('/posts', { method: 'POST', body: form }),
+  createPost: (params: {
+    body: string
+    upload_id?: string
+    kind?: string
+    alt_text?: string
+    ad_markers?: string[]
+    monetized?: boolean
+  }) => post<{ post: Post }>('/posts', params),
+  getPost: (id: number) => request<{ post: Post }>(`/posts/${id}`),
+  createLive: (body: string) => post<{ live: LiveInfo }>('/lives', { body }),
   like: (id: number) => post<{ liked: boolean; likes: number; saves: number }>(`/posts/${id}/like`),
   save: (id: number) => post<{ saved: boolean; likes: number; saves: number }>(`/posts/${id}/save`),
   view: (id: number, watchedMs: number) =>

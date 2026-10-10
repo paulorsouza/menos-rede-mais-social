@@ -13,6 +13,7 @@ import {
   Plus,
   Scale,
   ShieldCheck,
+  SignalLow,
   SquarePlay,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -121,7 +122,7 @@ function Dock() {
 }
 
 export function UserMenu({ placement = 'bottom', align = 'end' }: { placement?: 'bottom' | 'right'; align?: 'start' | 'end' }) {
-  const { me, logout } = useApp()
+  const { me, logout, dataSaver, setDataSaver } = useApp()
   const navigate = useNavigate()
 
   if (!me) return <ThemePicker />
@@ -182,6 +183,20 @@ export function UserMenu({ placement = 'bottom', align = 'end' }: { placement?: 
               </Link>
             ))}
           </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={dataSaver}
+            className="menu-item menu-item-compact"
+            onClick={() => setDataSaver(!dataSaver)}
+            title="Vídeo na qualidade mais baixa, e nada baixado antes de tocar"
+          >
+            <SignalLow size={18} />
+            <span>Economizar dados</span>
+            <span className={`switch switch-sm menu-switch ${dataSaver ? 'is-on' : ''}`} aria-hidden="true">
+              <span />
+            </span>
+          </button>
           <p className="menu-title">Tema</p>
           <ThemeSwatches />
           <button
