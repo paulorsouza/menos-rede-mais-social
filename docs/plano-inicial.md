@@ -312,11 +312,11 @@ Feito:
 - Licença AGPL-3.0 no repositório.
 - Repositório organizado, com README, guia de contribuição, política de segurança e modelo de RFC.
 - CI rodando os testes do motor, do backend e do front, mais a varredura de segredos em cada envio.
+- Ações da CI fixadas por hash de commit, como pede a seção 8.
 
 Falta:
 
 - Primeiros contribuidores de fora e o conselho provisório.
-- Fixar as ações da CI por hash de commit, como pede a seção 8.
 
 ### Fase 1 · Protótipo
 
@@ -435,6 +435,7 @@ Feito no repositório:
 
 - Cofre do CPF preso à conta da ordem (TDH2): o guardião confere, antes de calcular a parte, que o selado foi feito para a conta que está no pedido. Uma parte com defeito não impede as outras de abrir, e o motor recusa um `guardioes.toml` incoerente.
 - Cerimônia distribuída dos guardiões (`cofre dkg`), em três passos no computador de cada guardião, com a reclamação apontando quem mandou uma subfatia errada.
+- Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX.
 
 Falta:
 
@@ -443,7 +444,7 @@ Falta:
 - Conselho e os cinco guardiões.
 - Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
 - Encarregado de dados e relatório de impacto à proteção de dados.
-- Auditoria externa, recompensa por falhas e lista pública de dependências.
+- Auditoria externa e recompensa por falhas. A lista de dependências já sai da CI; falta publicá-la junto de cada versão em produção.
 - Orçamento e o primeiro relatório de transparência.
 
 ## 12. Riscos
