@@ -185,7 +185,7 @@ export interface AdRule {
   text: string
 }
 
-export type CampaignStatus = 'in_review' | 'awaiting_payment' | 'active' | 'rejected'
+export type CampaignStatus = 'in_review' | 'awaiting_payment' | 'active' | 'rejected' | 'ended'
 
 /** Uma campanha vista por quem anuncia (ou pela moderação). */
 export interface OwnCampaign extends Ad {
@@ -200,6 +200,9 @@ export interface OwnCampaign extends Ad {
   rejection_rule: AdRule | null
   brcode: string | null
   charge_txid: string | null
+  /** Preenchidos quando a campanha acaba. */
+  delivered: number | null
+  refunded_cents: number | null
 }
 
 export interface CampaignQuote {

@@ -164,7 +164,9 @@ defmodule RedeSocialWeb.Present do
       rejection_rule:
         campaign.rejection_rule && RedeSocial.Ads.Rules.get(campaign.rejection_rule),
       brcode: if(campaign.status == :awaiting_payment, do: campaign.brcode),
-      charge_txid: if(campaign.status == :awaiting_payment, do: campaign.charge_txid)
+      charge_txid: if(campaign.status == :awaiting_payment, do: campaign.charge_txid),
+      delivered: campaign.delivered,
+      refunded_cents: campaign.refunded_cents
     })
   end
 

@@ -4,7 +4,7 @@
 # Os valores abaixo são ILUSTRATIVOS. Os números finais dependem de decisão do
 # conselho (veja a seção 6 do plano). Qualquer mudança passa por RFC e entra
 # no log público antes de valer. Ao mudar, aumente `version`.
-version = 2
+version = 3
 
 # Nos shorts, entra um anúncio a cada N shorts assistidos.
 shorts_ad_every = 6
@@ -22,6 +22,10 @@ regional_view_percent = 50
 # Nos shorts, a parte da receita de cada anúncio que vai para os criadores
 # do bloco, a mesma dos vídeos. O resto vai para o fundo de infraestrutura.
 creator_share_percent = 55
+# Como essa parte se divide entre os shorts do bloco: "partes-iguais" (cada
+# short com anúncio ligado vale uma parte) ou "tempo-assistido". Partes
+# iguais não depende do tempo que o app informa.
+shorts_split = "partes-iguais"
 # Repasse menor que isto fica para o mês seguinte: um PIX de centavos custa
 # mais do que vale. Nada se perde, o saldo só espera.
 minimum_payout_cents = 100

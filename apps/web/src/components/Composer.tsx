@@ -292,7 +292,7 @@ export function Composer({ inline = false, onPublished }: { inline?: boolean; on
               aria-label="Anúncio"
               className={`switch switch-sm ${ads ? 'is-on' : ''}`}
               onClick={() => setAds((on) => !on)}
-              title={kind === 'short' ? 'Um anúncio a cada 6 shorts, dividido pelo tempo assistido' : 'Sem anúncio, sem receita'}
+              title={kind === 'short' ? 'Um anúncio a cada 6 shorts, dividido em partes iguais entre eles' : 'Sem anúncio, sem receita'}
             >
               <span />
             </button>

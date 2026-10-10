@@ -394,6 +394,39 @@ defmodule RedeSocial.AdsTest do
     end
   end
 
+  describe "encerramento" do
+    test "a campanha que acabou devolve por PIX o que não foi entregue" do
+      yesterday = Date.add(Date.utc_today(), -1)
+
+      campaign =
+        campaign_fixture(
+          impressions_per_day: 10,
+          cents_per_impression: 3,
+          paid_cents: 60,
+          charge_txid: "campanha-teste",
+          starts_on: Date.add(yesterday, -1),
+          ends_on: yesterday
+        )
+
+      for _ <- 1..4, do: Repo.insert!(%Impression{campaign_id: campaign.id, revenue_cents: 3})
+      running = campaign_fixture()
+
+      assert [{:ok, ended}] = Ads.close_ended_campaigns()
+
+      # Comprou 20 exibições, entregou 4: as outras 16 voltam, a 3 centavos.
+      assert ended.id == campaign.id
+      assert ended.status == :ended
+      assert ended.delivered == 4
+      assert ended.refunded_cents == 48
+      assert ended.refund_e2e_id =~ ~r/^D/
+      assert Repo.reload!(running).status == :active
+
+      # Encerrada, não entra de novo nem entrega mais.
+      assert Ads.close_ended_campaigns() == []
+      assert Ads.deliverable(campaign.id) == nil
+    end
+  end
+
   describe "biblioteca" do
     test "mostra só campanha paga, com o que já foi entregue" do
       paid = campaign_fixture()

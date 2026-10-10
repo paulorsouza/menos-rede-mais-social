@@ -209,6 +209,7 @@ pub fn shorts_share(impression: &ShortsImpression, creator: &str, params: &Param
     let shares = split_shorts_revenue(
         shorts_creator_pool(impression.revenue_cents, params),
         &views,
+        params.payout.shorts_split,
     );
     index
         .get(creator)
@@ -428,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn shorts_pay_the_creator_share_by_watch_time() {
+    fn shorts_pay_the_creator_share_in_equal_parts() {
         let impression = ShortsImpression {
             id: 7,
             revenue_cents: 1000,
@@ -451,9 +452,10 @@ mod tests {
         input.shorts = vec![impression.clone()];
         let result = close(&input, &params());
 
-        // 55% de R$ 10,00 para os criadores, três quartos para quem teve três
-        // quartos do tempo. O centavo que sobra vai para o menor id.
-        assert_eq!(result.shorts_cents, 413);
+        // 55% de R$ 10,00 para os criadores, em partes iguais por short
+        // (params/ads.toml): dois shorts, metade para cada um, seja qual for
+        // o tempo assistido.
+        assert_eq!(result.shorts_cents, 275);
 
         // Com conta básica, a parte dos criadores fica com o fundo, e a linha
         // do extrato diz por quê.

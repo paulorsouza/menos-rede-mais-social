@@ -178,8 +178,9 @@ function AdSlide({
   const [open, setOpen] = useState(false)
   const { toast } = useApp()
 
-  // Na primeira vez que o anúncio aparece, manda o tempo assistido de cada
-  // short do bloco. O motor de anúncios faz o rateio.
+  // Na primeira vez que o anúncio aparece, avisa a rede, com o tempo
+  // assistido de cada short do bloco para o registro. O motor de anúncios faz
+  // o rateio, em partes iguais por short.
   useEffect(() => {
     if (!inView || sent.current) return
     sent.current = true
@@ -191,17 +192,16 @@ function AdSlide({
   }, [inView, ad.slot_id, shortIds, watched])
 
   const creators = useMemo(() => {
-    const byAuthor = new Map<string, { nickname: string; ms: number }>()
+    const byAuthor = new Map<string, { nickname: string; shorts: number }>()
     for (const id of shortIds) {
       const post = postsById.get(id)
       if (!post) continue
-      const current = byAuthor.get(post.author.id) ?? { nickname: post.author.nickname, ms: 0 }
-      current.ms += watched.current.get(id) ?? 0
+      const current = byAuthor.get(post.author.id) ?? { nickname: post.author.nickname, shorts: 0 }
+      current.shorts += 1
       byAuthor.set(post.author.id, current)
     }
     return [...byAuthor.entries()]
-    // O tempo assistido só é lido de novo quando o resultado chega.
-  }, [shortIds, postsById, result])
+  }, [shortIds, postsById])
 
   return (
     <section ref={ref} className="short-slide">
@@ -238,14 +238,16 @@ function AdSlide({
               {result && (
                 <>
                   <p className="money-lead">
-                    {formatMoney(result.revenue_cents)} divididos pelo tempo que você assistiu a cada criador.
+                    {formatMoney(result.revenue_cents)} divididos em partes iguais entre os shorts que vieram antes.
                   </p>
                   <ul className="money-list">
                     {creators.map(([authorId, creator]) => (
                       <li key={authorId}>
                         <Avatar nickname={creator.nickname} size={24} />
                         <span className="money-name">{creator.nickname}</span>
-                        <span className="money-time">{(creator.ms / 1000).toFixed(0)}s</span>
+                        <span className="money-time">
+                          {creator.shorts} {creator.shorts === 1 ? 'short' : 'shorts'}
+                        </span>
                         <strong>{authorId in result.splits ? formatMoney(result.splits[authorId]) : '—'}</strong>
                       </li>
                     ))}

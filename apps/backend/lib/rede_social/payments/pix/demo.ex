@@ -20,11 +20,17 @@ defmodule RedeSocial.Payments.Pix.Demo do
   end
 
   @impl true
-  def transfer(_key, cents, _idempotency_id) when cents > 0 do
-    # Formato do id fim a fim do PIX: E + ISPB do banco + data e hora + sequência.
+  def transfer(_key, cents, _idempotency_id) when cents > 0, do: {:ok, e2e_id("E")}
+
+  @impl true
+  def refund(_txid, cents, _idempotency_id) when cents > 0, do: {:ok, e2e_id("D")}
+
+  # Formato do id fim a fim do PIX: letra + ISPB do banco + data e hora +
+  # sequência. A devolução começa com D.
+  defp e2e_id(letter) do
     stamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d%H%M")
     sequence = :crypto.strong_rand_bytes(5) |> Base.encode32(padding: false) |> binary_part(0, 7)
-    {:ok, "E00000000" <> stamp <> "DEMO" <> sequence}
+    letter <> "00000000" <> stamp <> "DEMO" <> sequence
   end
 
   @impl true
