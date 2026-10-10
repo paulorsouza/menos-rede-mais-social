@@ -22,6 +22,8 @@ docker compose --profile legendas up --build
 
 Se a porta 5432 já estiver em uso na sua máquina, crie um arquivo `.env` na raiz com `DB_PORT=5433`. A borda usa a 8090 (`BORDA_PORT`), as lives usam a 1935 (RTMP, para o OBS) e a 8189 (WebRTC).
 
+As portas só abrem para a sua máquina. Para abrir a demo num celular da mesma rede, ponha `WEB_BIND=0.0.0.0` no `.env`.
+
 Para voltar a demo ao estado inicial:
 
 ```bash

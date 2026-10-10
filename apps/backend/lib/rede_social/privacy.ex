@@ -5,7 +5,8 @@ defmodule RedeSocial.Privacy do
 
   Ao apagar, saem a conta, os posts com as fotos e vídeos, as curtidas, os
   salvamentos, quem você segue e quem te segue, as views, as denúncias, os
-  recursos e os avisos. A impressão digital do CPF sai junto, então a mesma
+  recursos, os avisos, os envios em andamento, as lives, a chave PIX e os
+  anúncios que a rede mostrou. A impressão digital do CPF sai junto, então a mesma
   pessoa pode criar outra conta depois. Ficam só registros que não são da
   pessoa e sim da rede, sem o vínculo com ela: as decisões da moderação (que
   alimentam os números públicos) e as impressões de anúncio (que fecham as
@@ -15,9 +16,13 @@ defmodule RedeSocial.Privacy do
   import Ecto.Query
 
   alias RedeSocial.Accounts.Account
+  alias RedeSocial.Ads.{AdSlot, AdView, Advertiser, Campaign, Impression}
+  alias RedeSocial.Lives.Live
   alias RedeSocial.Moderation.{Appeal, Notice, Report}
-  alias RedeSocial.{AccessLogs, Repo}
+  alias RedeSocial.Payments.{Month, Payout, PixKey}
+  alias RedeSocial.{AccessLogs, Repo, Uploads}
   alias RedeSocial.Social.{Follow, Like, MonthlyViews, Post, Save, View}
+  alias RedeSocial.Uploads.Upload
 
   @doc "Tudo o que a rede guarda sobre a conta, num mapa pronto para virar JSON."
   def export(%Account{id: id} = account) do
@@ -116,6 +121,33 @@ defmodule RedeSocial.Privacy do
             where: n.account_id == ^id,
             select: %{kind: n.kind, rule: n.rule, post_id: n.post_id, at: n.inserted_at}
         ),
+      uploads:
+        all(
+          from u in Upload,
+            where: u.account_id == ^id,
+            select: %{
+              filename: u.filename,
+              content_type: u.content_type,
+              bytes: u.length,
+              started_at: u.inserted_at,
+              completed_at: u.completed_at,
+              used_at: u.used_at
+            }
+        ),
+      lives:
+        all(
+          from l in Live,
+            where: l.account_id == ^id,
+            select: %{
+              post_id: l.post_id,
+              status: l.status,
+              started_at: l.started_at,
+              ended_at: l.ended_at
+            }
+        ),
+      ads_seen: ads_seen(id),
+      creator: creator(id),
+      advertiser: advertiser(id),
       accesses: %{
         about:
           "Datas dos seus acessos, guardadas por seis meses como manda o Marco Civil. O IP de cada " <>
@@ -123,6 +155,98 @@ defmodule RedeSocial.Privacy do
         at: id |> AccessLogs.for_account() |> Enum.map(& &1.inserted_at)
       }
     }
+  end
+
+  # Os anúncios que a rede mostrou à pessoa e os que contaram.
+  defp ads_seen(id) do
+    %{
+      shown:
+        all(
+          from s in AdSlot,
+            where: s.viewer_id == ^id,
+            select: %{
+              campaign_id: s.campaign_id,
+              kind: s.kind,
+              post_ids: s.post_ids,
+              at: s.served_at
+            }
+        ),
+      in_videos:
+        all(
+          from v in AdView,
+            where: v.viewer_id == ^id,
+            select: %{
+              campaign_id: v.campaign_id,
+              post_id: v.post_id,
+              moment: v.moment,
+              at: v.inserted_at
+            }
+        ),
+      in_shorts:
+        all(
+          from i in Impression,
+            where: i.viewer_id == ^id,
+            select: %{campaign_id: i.campaign_id, watched: i.breakdown, at: i.inserted_at}
+        )
+    }
+  end
+
+  # Para quem recebe por anúncio: a chave PIX e cada extrato.
+  defp creator(id) do
+    key = Repo.get(PixKey, id)
+
+    %{
+      pix_key: key && %{kind: key.kind, key: key.key, verified_at: key.verified_at},
+      statements:
+        all(
+          from p in Payout,
+            join: m in Month,
+            on: m.id == p.month_id,
+            where: p.account_id == ^id,
+            order_by: [asc: m.month],
+            select: %{
+              month: m.month,
+              total_cents: p.total_cents,
+              status: p.status,
+              paid_at: p.paid_at,
+              pix_e2e_id: p.pix_e2e_id,
+              statement: p.result
+            }
+        )
+    }
+  end
+
+  # Para quem anuncia: a empresa e as campanhas.
+  defp advertiser(id) do
+    case Repo.get_by(Advertiser, account_id: id) do
+      nil ->
+        nil
+
+      advertiser ->
+        %{
+          cnpj: advertiser.cnpj,
+          name: advertiser.name,
+          campaigns:
+            all(
+              from c in Campaign,
+                where: c.advertiser_id == ^advertiser.id,
+                order_by: [asc: c.id],
+                select: %{
+                  id: c.id,
+                  title: c.title,
+                  body: c.body,
+                  scope: c.scope,
+                  region: c.region,
+                  starts_on: c.starts_on,
+                  ends_on: c.ends_on,
+                  price_cents: c.price_cents,
+                  paid_cents: c.paid_cents,
+                  status: c.status,
+                  rejection_rule: c.rejection_rule
+                }
+            )
+        }
+    end
   end
 
   @doc """
@@ -140,8 +264,12 @@ defmodule RedeSocial.Privacy do
             select: %{media_path: p.media_path, media_asset_id: p.media_asset_id}
         )
 
+      uploads = all(from u in Upload, where: u.account_id == ^account.id)
+
       {:ok, _account} = Repo.delete(account)
       Enum.each(media, &RedeSocial.Media.delete/1)
+      # Os envios em andamento saem junto com a linha; os bytes também.
+      Enum.each(uploads, &File.rm(Uploads.path(&1)))
       :ok
     else
       {:error, :confirmation}

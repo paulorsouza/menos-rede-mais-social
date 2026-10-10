@@ -28,6 +28,43 @@ defmodule RedeSocial.PrivacyTest do
     refute json =~ "cpf_ciphertext"
   end
 
+  test "o arquivo traz também anúncios, envios, extratos e a empresa de quem anuncia" do
+    account = account_fixture()
+
+    {:ok, _advertiser} =
+      RedeSocial.Ads.register_advertiser(account, %{
+        "cnpj" => RedeSocial.Accounts.CNPJ.generate_for_testing(),
+        "name" => "Padaria da Conta"
+      })
+
+    {:ok, _upload} =
+      RedeSocial.Uploads.create(account, 10, %{
+        "filename" => "foto.jpg",
+        "filetype" => "image/jpeg"
+      })
+
+    export = Privacy.export(account)
+
+    assert export.advertiser.name == "Padaria da Conta"
+    assert [%{filename: "foto.jpg", content_type: "image/jpeg"}] = export.uploads
+    assert export.creator == %{pix_key: nil, statements: []}
+    assert export.ads_seen == %{shown: [], in_videos: [], in_shorts: []}
+    assert export.lives == []
+  end
+
+  test "apagar a conta apaga os bytes dos envios que não viraram post" do
+    account = account_fixture()
+
+    {:ok, upload} =
+      RedeSocial.Uploads.create(account, 10, %{"filename" => "v.mp4", "filetype" => "video/mp4"})
+
+    path = RedeSocial.Uploads.path(upload)
+    assert File.exists?(path)
+
+    assert Privacy.delete_account(account, account.nickname) == :ok
+    refute File.exists?(path)
+  end
+
   test "apagar pede o apelido e leva tudo junto" do
     account = account_fixture()
     friend = account_fixture()
