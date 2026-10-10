@@ -93,6 +93,7 @@ defmodule RedeSocial.PaymentsTest do
       Repo.insert!(%Impression{
         campaign_id: campaign.id,
         revenue_cents: 10,
+        viewer_verified: true,
         splits: %{paid.id => 7},
         breakdown: [
           %{"post_id" => 1, "author_id" => paid.id, "watched_ms" => 5000, "monetized" => true}
@@ -105,7 +106,9 @@ defmodule RedeSocial.PaymentsTest do
         paid: paid,
         small: small,
         keyless: keyless,
-        keyless_cpf: keyless_cpf
+        keyless_cpf: keyless_cpf,
+        campaign: campaign,
+        during: during
       }
     end
 
@@ -164,6 +167,48 @@ defmodule RedeSocial.PaymentsTest do
       # Quem viu aparece só pelo pseudônimo do mês.
       viewers = Enum.map(file.entrada["video_views"], & &1["viewer"])
       assert Enum.all?(viewers, &(&1 =~ ~r/^[0-9a-f]{32}$/))
+    end
+
+    test "quem apagou a conta não recebe e não trava o fechamento dos outros", c do
+      {gone, _cpf} = account_with_cpf()
+
+      Repo.insert!(%Impression{
+        campaign_id: c.campaign.id,
+        revenue_cents: 10,
+        viewer_verified: true,
+        breakdown: [
+          %{"post_id" => 2, "author_id" => gone.id, "watched_ms" => 5000, "monetized" => true}
+        ],
+        inserted_at: c.during
+      })
+
+      :ok = RedeSocial.Privacy.delete_account(gone, gone.nickname)
+
+      {:ok, month, payouts} = Payments.close_month(c.last_month)
+      refute Enum.any?(payouts, &(&1.account_id == gone.id))
+      assert month.fund_cents == month.revenue_cents - month.creators_cents
+    end
+
+    test "o mês é o de Brasília: 23h do último dia ainda é o mês que fecha", c do
+      # 23h em Brasília é 2h do dia seguinte em UTC.
+      late = DateTime.new!(Date.shift(c.last_month, month: 1), ~T[02:00:00], "Etc/UTC")
+      video = video_fixture(c.small)
+
+      Repo.insert!(%AdView{
+        campaign_id: c.campaign.id,
+        post_id: video.id,
+        creator_id: c.small.id,
+        viewer_id: account_fixture().id,
+        viewer_verified: true,
+        regional: false,
+        moment: "start",
+        revenue_cents: 3,
+        inserted_at: late
+      })
+
+      {:ok, _month, payouts} = Payments.close_month(c.last_month)
+      small = Enum.find(payouts, &(&1.account_id == c.small.id))
+      assert length(small.input["video_views"]) == 51
     end
 
     test "o saldo pequeno vai para o mês seguinte", c do

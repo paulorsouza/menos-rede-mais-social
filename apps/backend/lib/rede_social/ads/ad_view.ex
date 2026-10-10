@@ -11,6 +11,7 @@ defmodule RedeSocial.Ads.AdView do
     belongs_to :post, RedeSocial.Social.Post
     belongs_to :creator, RedeSocial.Accounts.Account, type: :binary_id
     belongs_to :viewer, RedeSocial.Accounts.Account, type: :binary_id
+    belongs_to :slot, RedeSocial.Ads.AdSlot
     field :viewer_region, :string
     field :viewer_verified, :boolean
     field :regional, :boolean

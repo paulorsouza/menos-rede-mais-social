@@ -12,7 +12,7 @@ defmodule RedeSocial.Demo.Seeds do
 
   alias RedeSocial.{Accounts, Ads, Media, Moderation, Payments, Repo, Social}
   alias RedeSocial.Accounts.{CNPJ, CPF}
-  alias RedeSocial.Ads.{AdView, Advertiser, Campaign}
+  alias RedeSocial.Ads.{AdSlot, AdView, Advertiser, Campaign}
   alias RedeSocial.Payments.Pix
   alias RedeSocial.Demo.{Art, Clips}
   alias RedeSocial.Social.{Like, Post, Save, View}
@@ -815,10 +815,22 @@ defmodule RedeSocial.Demo.Seeds do
 
       viewer = Enum.at(viewers, rem(n * 3, length(viewers)))
       campaign = Enum.at(national, rem(n, length(national)))
-      {:ok, impression} = Ads.record_impression(viewer, campaign.id, watched)
+      seen = at.(rem(n, days) + 1, 18)
+
+      # A exibição que a rede mostrou, dois minutos antes de o anúncio aparecer.
+      slot =
+        Repo.insert!(%AdSlot{
+          viewer_id: viewer.id,
+          campaign_id: campaign.id,
+          kind: :shorts,
+          post_ids: Enum.map(block, & &1.id),
+          served_at: DateTime.add(seen, -120, :second)
+        })
+
+      {:ok, impression} = Ads.record_impression(viewer, slot.id, watched, seen)
 
       Repo.update_all(from(i in RedeSocial.Ads.Impression, where: i.id == ^impression.id),
-        set: [inserted_at: at.(rem(n, days) + 1, 18)]
+        set: [inserted_at: seen]
       )
     end
 

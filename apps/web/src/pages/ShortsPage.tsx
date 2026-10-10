@@ -10,7 +10,7 @@ import { usePostActions } from '../components/PostCard'
 import { Empty, ErrorState, Loading } from '../components/States'
 import { VideoView } from '../components/VideoView'
 import { formatCompact, formatMoney } from '../format'
-import { useInView } from '../hooks'
+import { useInView, usePageVisible } from '../hooks'
 import type { Ad, Post, ShortItem, ShortsResponse } from '../types'
 
 type Watched = RefObject<Map<number, number>>
@@ -93,25 +93,36 @@ export function ShortsPage() {
 
 function ShortSlide({ post: initial, muted, onWatched }: { post: Post; muted: boolean; onWatched: (ms: number) => void }) {
   const [ref, inView] = useInView<HTMLElement>(0.6)
+  const visible = usePageVisible()
   const startedAt = useRef<number | null>(null)
+  const pending = useRef(0)
   const { post, like, save } = usePostActions(initial)
 
-  // Ao sair da tela, conta o tempo assistido e avisa o backend. Abaixo de 2
-  // segundos a view não conta para o criador.
-  function flush() {
+  // Só conta o tempo com o short na tela e a aba à mostra.
+  function pause() {
     if (startedAt.current === null) return
-    const ms = performance.now() - startedAt.current
+    pending.current += performance.now() - startedAt.current
     startedAt.current = null
+  }
+
+  // Ao sair da tela, avisa o backend do tempo assistido. Abaixo de 2
+  // segundos a view não conta para o criador.
+  function report() {
+    pause()
+    const ms = pending.current
+    pending.current = 0
+    if (ms <= 0) return
     onWatched(ms)
     api.view(post.id, ms).catch(() => undefined)
   }
 
   useEffect(() => {
-    if (inView) startedAt.current = performance.now()
-    else flush()
-  }, [inView])
+    if (inView && visible) startedAt.current = performance.now()
+    else if (inView) pause()
+    else report()
+  }, [inView, visible])
 
-  useEffect(() => () => flush(), [])
+  useEffect(() => () => report(), [])
 
   return (
     <section ref={ref} className="short-slide">
@@ -174,10 +185,10 @@ function AdSlide({
     sent.current = true
     const payload = shortIds.map((id) => ({ post_id: id, watched_ms: Math.round(watched.current.get(id) ?? 0) }))
     api
-      .impression(ad.id, payload)
+      .impression(ad.slot_id, payload)
       .then(setResult)
       .catch(() => setFailed(true))
-  }, [inView, ad.id, shortIds, watched])
+  }, [inView, ad.slot_id, shortIds, watched])
 
   const creators = useMemo(() => {
     const byAuthor = new Map<string, { nickname: string; ms: number }>()
