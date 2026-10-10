@@ -118,6 +118,7 @@ const KIND_LABEL: Record<string, string> = {
   identificacao: 'Ordem judicial aberta',
   fechamento: 'Fechamento do mês',
   relatorio: 'Relatório trimestral',
+  'pedido-remocao': 'Pedido de remoção',
 }
 
 /** Uma linha curta para cada entrada, a partir do texto exato publicado. */
@@ -129,6 +130,7 @@ function describe(kind: string, data: string) {
     if (kind === 'identificacao') return payload.sigiloso ? 'Processo sigiloso' : payload.juizo
     if (kind === 'fechamento')
       return `${monthName(`${payload.mes}-01`)} · ${payload.linhas} linhas · raiz ${String(payload.raiz).slice(0, 8)}…`
+    if (kind === 'pedido-remocao') return `${payload.orgao} · ${payload.decisao}`
     if (kind === 'relatorio') return `${payload.trimestre} · ${String(payload.sha256).slice(0, 8)}…`
   } catch {
     // Entrada de um tipo novo: mostra só o tipo.

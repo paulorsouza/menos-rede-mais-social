@@ -112,6 +112,11 @@ defmodule RedeSocialWeb.Router do
         post "/orders/:id/partials", IdentificationController, :submit
         post "/orders/:id/simulate/:guardian", IdentificationController, :simulate
         post "/orders/:id/open", IdentificationController, :open
+
+        get "/removals", RemovalRequestController, :index
+        post "/removals", RemovalRequestController, :create
+        post "/removals/:id/comply", RemovalRequestController, :comply
+        post "/removals/:id/refuse", RemovalRequestController, :refuse
       end
 
       scope "/moderation" do

@@ -441,6 +441,7 @@ Feito no repositório:
 - Cerimônia distribuída dos guardiões (`cofre dkg`), em três passos no computador de cada guardião, com a reclamação apontando quem mandou uma subfatia errada.
 - Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX.
 - Relatório de transparência trimestral, publicado sozinho no primeiro dia de cada trimestre: denúncias e remoções por regra, recursos, ordens judiciais recebidas e cumpridas (as em segredo de justiça só na contagem), campanhas recusadas por regra e as contas dos meses. O SHA-256 do arquivo vai para o registro público, e qualquer pessoa confere o que baixou.
+- Pedidos de remoção vindos de fora, pelo canal formal do setor jurídico, com quem pediu e a base legal. Ordem judicial é cumprida e o post sai pela regra 9; pedido de outro órgão só tira o post se ele quebra uma regra pública, e senão é recusado com o motivo. Cada decisão entra no registro público (o número do processo só quando não é sigiloso), e os pedidos entram no relatório trimestral.
 
 Falta:
 
@@ -451,7 +452,6 @@ Falta:
 - Encarregado de dados e relatório de impacto à proteção de dados.
 - Auditoria externa e recompensa por falhas. A lista de dependências já sai da CI; falta publicá-la junto de cada versão em produção.
 - Orçamento e o primeiro relatório de transparência com gente de verdade.
-- Pedidos de remoção vindos de autoridades ainda não têm cadastro próprio, então não entram no relatório.
 
 ## 12. Riscos
 

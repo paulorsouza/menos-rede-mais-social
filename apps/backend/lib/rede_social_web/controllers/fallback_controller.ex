@@ -166,8 +166,20 @@ defmodule RedeSocialWeb.FallbackController do
     error(conn, :conflict, "Você já recorreu desta remoção.")
   end
 
+  def call(conn, {:error, :judicial_order}) do
+    error(
+      conn,
+      :unprocessable_entity,
+      "Ordem judicial se cumpre. Contestar é no próprio processo."
+    )
+  end
+
+  def call(conn, {:error, :reason_required}) do
+    error(conn, :unprocessable_entity, "Diga por que o pedido foi recusado.")
+  end
+
   def call(conn, {:error, :already_decided}) do
-    error(conn, :conflict, "Este recurso já foi decidido.")
+    error(conn, :conflict, "Isto já foi decidido.")
   end
 
   def call(conn, {:error, :invalid_outcome}) do
