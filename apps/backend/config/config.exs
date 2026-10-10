@@ -14,7 +14,8 @@ config :rede_social,
 config :rede_social,
   # Motor de feed e anúncios (services/engine-server).
   engine_url: "http://localhost:7070",
-  uploads_dir: "priv/uploads",
+  # Pasta de trabalho: envios em andamento e originais esperando conversão.
+  staging_dir: "priv/staging",
   # Valor base pago por mil views na primeira faixa, em centavos. Ilustrativo
   # até a decisão do conselho (seção 6 do plano).
   base_cents_per_thousand: 200
@@ -25,6 +26,30 @@ config :rede_social,
 config :rede_social, :govbr,
   base_url: "https://sso.staging.acesso.gov.br",
   age_fallback: :minor
+
+# Fotos e vídeos prontos. Sem S3 configurado (config/runtime.exs), ficam
+# nesta pasta e o próprio backend serve em /media.
+config :rede_social, RedeSocial.Storage,
+  adapter: RedeSocial.Storage.Local,
+  root: "priv/media"
+
+# Lives: a API do servidor de transmissão, o segredo que ele manda ao pedir
+# autorização e a pasta onde ele grava (config/runtime.exs no Docker).
+config :rede_social, :ao_vivo,
+  api: "http://localhost:9997",
+  secret: nil,
+  recordings_dir: "priv/gravacoes"
+
+# Fila de trabalhos. A fila `video` converte os vídeos; o Cron apaga os
+# envios abandonados de hora em hora.
+config :rede_social, Oban,
+  engine: Oban.Engines.Basic,
+  repo: RedeSocial.Repo,
+  queues: [default: 5, video: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 7 * 24 * 3600},
+    {Oban.Plugins.Cron, crontab: [{"@hourly", RedeSocial.Uploads.PurgeWorker}]}
+  ]
 
 # Configure the endpoint
 config :rede_social, RedeSocialWeb.Endpoint,

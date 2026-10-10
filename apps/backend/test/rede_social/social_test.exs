@@ -1,15 +1,11 @@
 defmodule RedeSocial.SocialTest do
   use RedeSocial.DataCase, async: true
 
-  import RedeSocial.Fixtures
+  import RedeSocial.{Fixtures, MediaFixtures}
 
   alias RedeSocial.{Accounts, Social}
 
-  defp video_upload do
-    path = Path.join(System.tmp_dir!(), "video#{System.unique_integer([:positive])}.mp4")
-    File.write!(path, "não é um vídeo de verdade")
-    %Plug.Upload{path: path, filename: "video.mp4", content_type: "video/mp4"}
-  end
+  defp video_upload, do: upload(landscape_video())
 
   describe "create_post/3" do
     test "conta básica não publica" do
@@ -47,13 +43,11 @@ defmodule RedeSocial.SocialTest do
       assert bronze_post.ad_markers == []
       assert prata_post.monetized
       assert prata_post.ad_markers == ["start"]
-      assert String.starts_with?(prata_post.media_path, "/uploads/")
+      assert prata_post.media_status == :processing
     end
 
     test "a descrição da imagem fica só em foto" do
-      path = Path.join(System.tmp_dir!(), "foto#{System.unique_integer([:positive])}.png")
-      File.write!(path, "não é uma foto de verdade")
-      upload = %Plug.Upload{path: path, filename: "foto.png", content_type: "image/png"}
+      upload = upload(photo_with_exif())
       alt = "Um cachorro dormindo no sofá"
 
       {:ok, photo} =
@@ -71,7 +65,9 @@ defmodule RedeSocial.SocialTest do
     end
 
     test "recusa arquivo que não é foto nem vídeo" do
-      upload = %{video_upload() | filename: "programa.exe"}
+      path = Path.join(System.tmp_dir!(), "programa#{System.unique_integer([:positive])}.exe")
+      File.write!(path, "não é foto nem vídeo")
+      upload = upload(path)
       attrs = %{"kind" => "short", "body" => "x"}
 
       assert Social.create_post(account_fixture(), attrs, upload) == {:error, :unsupported_file}

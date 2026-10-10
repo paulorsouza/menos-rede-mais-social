@@ -42,6 +42,9 @@ defmodule RedeSocialWeb.Router do
     post "/govbr/cadastro", GovBrController, :register
 
     get "/health", HealthController, :show
+    options "/envios", UploadController, :options
+    # Chamado pelo servidor de transmissão (infra/ao-vivo), não pelo app.
+    post "/ao-vivo/autorizar", LiveController, :authorize
     get "/transparency", TransparencyController, :show
     get "/me", SessionController, :show
     delete "/session", SessionController, :delete
@@ -71,6 +74,11 @@ defmodule RedeSocialWeb.Router do
       get "/feed/conta", FeedController, :account
       get "/shorts", FeedController, :shorts
       post "/posts", PostController, :create
+      post "/envios", UploadController, :create
+      post "/lives", LiveController, :create
+      get "/envios/:id", UploadController, :show
+      patch "/envios/:id", UploadController, :update
+      delete "/envios/:id", UploadController, :delete
       post "/posts/:id/like", PostController, :like
       post "/posts/:id/save", PostController, :save
       post "/posts/:id/views", PostController, :view

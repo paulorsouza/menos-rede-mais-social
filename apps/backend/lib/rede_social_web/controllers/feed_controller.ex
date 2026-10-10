@@ -7,18 +7,12 @@ defmodule RedeSocialWeb.FeedController do
   action_fallback RedeSocialWeb.FallbackController
 
   @doc """
-  Feed de textos e fotos (kind=home), de vídeos (kind=videos) ou de tudo
-  (kind=all, usado pela aba "Em alta").
+  Feed de textos e fotos (kind=home), de vídeos e lives (kind=videos) ou de
+  tudo (kind=all, usado pela aba "Em alta").
   """
   def index(conn, params) do
     mode = Map.get(params, "mode", "mixed")
-
-    kinds =
-      case params["kind"] do
-        "videos" -> [:video]
-        "all" -> [:text, :photo, :video, :short]
-        _ -> [:text, :photo]
-      end
+    kinds = kinds(params["kind"])
 
     if Feed.valid_mode?(mode) do
       viewer = conn.assigns.current_account
@@ -27,7 +21,7 @@ defmodule RedeSocialWeb.FeedController do
       # Nos vídeos, o anúncio entra nos pontos que o criador marcou. O player
       # recebe o anúncio escolhido para esta pessoa (regional, se houver).
       ad =
-        if kinds == [:video] and not Accounts.minor?(viewer) do
+        if :video in kinds and not Accounts.minor?(viewer) do
           Date.utc_today() |> Ads.active_campaigns() |> Ads.pick_campaign(viewer, 0)
         end
 
@@ -67,14 +61,7 @@ defmodule RedeSocialWeb.FeedController do
   @doc "A conta do feed (entrada, saída e recibo), para baixar e conferir."
   def account(conn, params) do
     mode = Map.get(params, "mode", "mixed")
-
-    kinds =
-      case params["kind"] do
-        "videos" -> [:video]
-        "all" -> [:text, :photo, :video, :short]
-        "shorts" -> [:short]
-        _ -> [:text, :photo]
-      end
+    kinds = kinds(params["kind"])
 
     with true <- Feed.valid_mode?(mode) || :invalid,
          {:ok, account} <- Feed.account(conn.assigns.current_account, mode, kinds) do
@@ -86,6 +73,11 @@ defmodule RedeSocialWeb.FeedController do
       error -> error
     end
   end
+
+  defp kinds("videos"), do: [:video, :live]
+  defp kinds("all"), do: [:text, :photo, :video, :short, :live]
+  defp kinds("shorts"), do: [:short]
+  defp kinds(_home), do: [:text, :photo]
 
   defp invalid_mode(conn) do
     conn

@@ -1,0 +1,76 @@
+# Parâmetros públicos de vídeo e fotos (apps/backend, RedeSocial.Media).
+#
+# Como os outros arquivos de params/, mudar um valor aqui é mudança de código:
+# passa por RFC e aumenta `version`. A página de transparência mostra o hash
+# deste arquivo e o custo por hora de vídeo calculado com ele.
+version = 1
+
+[upload]
+# Tamanho máximo de cada envio. O envio retoma de onde parou, então um
+# arquivo grande numa internet fraca chega, só demora mais.
+max_video_mb = 2048
+max_photo_mb = 20
+# Vídeo mais longo que isso não entra. Cada hora guardada custa (ver [costs]).
+max_video_minutes = 240
+# Vídeo em pé de até `short_max_seconds` vira short.
+short_max_seconds = 180
+
+[hls]
+# Duração de cada pedaço do vídeo. Pedaço curto troca de qualidade mais rápido
+# quando a internet oscila; pedaço longo gasta menos com cabeçalhos.
+segment_seconds = 4
+# Qualidade do H.264 (quanto menor, melhor e mais pesado). O teto de bitrate
+# de cada degrau vale por cima disso: vídeo simples sai bem abaixo do teto.
+crf = 23
+
+# Os degraus de qualidade. `short_side` é o lado menor do vídeo, em pixels:
+# 720 é 1280x720 deitado ou 720x1280 em pé. Só entram os degraus até o
+# tamanho do vídeo enviado, então ninguém paga para guardar uma versão
+# "1080p" de um vídeo que chegou em 480.
+[[hls.ladder]]
+short_side = 240
+video_kbps = 400
+audio_kbps = 64
+
+[[hls.ladder]]
+short_side = 360
+video_kbps = 800
+audio_kbps = 96
+
+[[hls.ladder]]
+short_side = 480
+video_kbps = 1400
+audio_kbps = 96
+
+[[hls.ladder]]
+short_side = 720
+video_kbps = 2800
+audio_kbps = 128
+
+[[hls.ladder]]
+short_side = 1080
+video_kbps = 5000
+audio_kbps = 128
+
+[photo]
+# Fotos saem em WebP, sem os metadados da câmera: some a localização do GPS
+# que muito celular grava dentro da foto.
+max_side = 2048
+quality = 80
+
+[data_saver]
+# No modo econômico, o player não passa deste degrau.
+max_short_side = 360
+
+[captions]
+# Legendas automáticas, geradas sem sair da rede (whisper.cpp).
+language = "pt"
+
+[costs]
+# Preços ilustrativos, em centavos de real, para estimar quanto custa uma
+# hora de vídeo. Os de verdade dependem de quem operar a rede.
+storage_cents_per_gb_month = 12
+egress_cents_per_gb = 20
+cpu_cents_per_hour = 25
+# Por quantos meses a conta considera o vídeo guardado.
+months_stored = 12

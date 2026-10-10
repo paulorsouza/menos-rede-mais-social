@@ -12,6 +12,7 @@ defmodule RedeSocial.Application do
       RedeSocial.Repo,
       {DNSCluster, query: Application.get_env(:rede_social, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: RedeSocial.PubSub},
+      {Oban, oban_config()},
       # Start a worker by calling: RedeSocial.Worker.start_link(arg)
       # {RedeSocial.Worker, arg},
       # Start to serve requests, typically the last entry
@@ -24,15 +25,16 @@ defmodule RedeSocial.Application do
         do: List.insert_at(children, 2, RedeSocial.Repo.Replica),
         else: children
 
-    # Trabalhos de fundo: apagar acessos vencidos, retratar o grafo e anotar
-    # cada versão do motor no registro. Só rodam junto com o servidor de
+    # Trabalhos de fundo: apagar acessos vencidos, retratar o grafo, anotar
+    # cada versão do motor no registro e ver quais lives acabaram. Só rodam junto com o servidor de
     # verdade, nunca em tarefas avulsas como seeds e migrações, para não
     # retratar um grafo pela metade.
     background =
       for {flag, worker} <- [
             access_log_janitor: RedeSocial.AccessLogs.Janitor,
             graph_photographer: RedeSocial.GraphCommitments.Photographer,
-            registro_watcher: RedeSocial.Registro.Watcher
+            registro_watcher: RedeSocial.Registro.Watcher,
+            live_watcher: RedeSocial.Lives.Watcher
           ],
           Application.get_env(:rede_social, flag, true),
           do: worker
@@ -46,6 +48,16 @@ defmodule RedeSocial.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: RedeSocial.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # A fila só processa trabalhos junto com o servidor. Em tarefas avulsas
+  # (seeds, migrações) ela só aceita trabalhos novos.
+  defp oban_config do
+    config = Application.fetch_env!(:rede_social, Oban)
+
+    if Phoenix.Endpoint.server?(:rede_social, RedeSocialWeb.Endpoint),
+      do: config,
+      else: Keyword.merge(config, queues: false, plugins: false)
   end
 
   # Tell Phoenix to update the endpoint configuration

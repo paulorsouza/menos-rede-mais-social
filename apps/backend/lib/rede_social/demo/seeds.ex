@@ -579,7 +579,9 @@ defmodule RedeSocial.Demo.Seeds do
     end)
   end
 
-  defp insert_post(personas, nickname, attrs, media_path, hours_ago, now) do
+  # `media` é o endereço de uma foto ou os campos de um vídeo já convertido
+  # (Media.ingest_now/2).
+  defp insert_post(personas, nickname, attrs, media, hours_ago, now) do
     author = Map.fetch!(personas, nickname)
 
     attrs =
@@ -588,7 +590,10 @@ defmodule RedeSocial.Demo.Seeds do
         else: Map.merge(attrs, %{monetized: false, ad_markers: []})
 
     post =
-      %Post{author_id: author.id, media_path: media_path}
+      case media do
+        %{} = fields -> struct(%Post{author_id: author.id}, Map.delete(fields, :kind))
+        path -> %Post{author_id: author.id, media_path: path}
+      end
       |> Post.changeset(attrs)
       |> Repo.insert!()
 
@@ -605,7 +610,7 @@ defmodule RedeSocial.Demo.Seeds do
         Task.async_stream(
           @shorts,
           fn {nickname, caption, title, audience, hours, likes, style} ->
-            {:ok, media} = Clips.render(title, style, 8)
+            media = render(personas, nickname, title, style, 8, {480, 854}, caption)
             attrs = %{kind: :short, body: caption, monetized: true}
             {insert_post(personas, nickname, attrs, media, hours, now), likes, audience}
           end,
@@ -617,7 +622,7 @@ defmodule RedeSocial.Demo.Seeds do
         Task.async_stream(
           @videos,
           fn {nickname, caption, title, audience, hours, likes, style, markers} ->
-            {:ok, media} = Clips.render(title, style, 20, {854, 480})
+            media = render(personas, nickname, title, style, 20, {854, 480}, caption)
             attrs = %{kind: :video, body: caption, ad_markers: markers}
             {insert_post(personas, nickname, attrs, media, hours, now), likes, audience}
           end,
@@ -630,6 +635,14 @@ defmodule RedeSocial.Demo.Seeds do
       Logger.warning("ffmpeg não encontrado: a demonstração vai subir sem shorts e vídeos.")
       []
     end
+  end
+
+  # Gera o clipe e converte em HLS na hora, pelo mesmo caminho dos vídeos
+  # enviados, sem passar pela fila.
+  defp render(personas, nickname, title, style, seconds, size, narration) do
+    {:ok, path} = Clips.render(title, style, seconds, size, narration)
+    {:ok, fields} = Media.ingest_now(Map.fetch!(personas, nickname).id, path)
+    fields
   end
 
   # Curtidas, salvamentos e views do público do post. Cada post começa num

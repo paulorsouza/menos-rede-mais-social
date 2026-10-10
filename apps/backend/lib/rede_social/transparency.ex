@@ -1,10 +1,12 @@
 defmodule RedeSocial.Transparency do
   @moduledoc """
   O que a página de transparência mostra: os parâmetros que o motor está usando
-  (com o hash de cada arquivo), os números da rede e a biblioteca de anúncios.
+  (com o hash de cada arquivo), os números da rede, a biblioteca de anúncios e
+  quanto custa uma hora de vídeo.
   """
 
   alias RedeSocial.{Accounts, Ads, Engine, Identification, Moderation, Social}
+  alias RedeSocial.Media.Costs
   alias RedeSocial.Moderation.Rules
 
   def report do
@@ -22,7 +24,8 @@ defmodule RedeSocial.Transparency do
       moderation: Moderation.public_stats(),
       identifications: Identification.public_log(),
       rules: Rules.all(),
-      ads: Ads.library()
+      ads: Ads.library(),
+      video: %{params: Costs.params_file(), costs: Costs.summary()}
     }
   end
 end

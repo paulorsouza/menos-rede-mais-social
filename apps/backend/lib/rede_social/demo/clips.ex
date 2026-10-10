@@ -1,10 +1,12 @@
 defmodule RedeSocial.Demo.Clips do
   @moduledoc """
   Gera os vídeos da demonstração com o ffmpeg: um fundo animado com o título
-  escrito por cima. Sem ffmpeg instalado, a demo sobe sem vídeos.
+  escrito por cima. Com o espeak-ng instalado, uma voz sintética lê a
+  legenda do post, para as legendas automáticas terem o que transcrever.
+  Sem ffmpeg instalado, a demo sobe sem vídeos.
   """
 
-  alias RedeSocial.Media
+  alias RedeSocial.Uploads
 
   @font "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
   @font_size 40
@@ -12,39 +14,42 @@ defmodule RedeSocial.Demo.Clips do
 
   def available?, do: System.find_executable("ffmpeg") != nil and File.exists?(@font)
 
-  @doc "Gera um vídeo e devolve a URL dele em /uploads."
-  def render(title, style, seconds, {width, height} \\ {480, 854}) do
-    {path, url} = Media.new_file(".mp4")
+  @doc "Gera um vídeo na pasta de trabalho e devolve o caminho dele."
+  def render(title, style, seconds, {width, height} \\ {480, 854}, narration \\ nil) do
+    File.mkdir_p!(Uploads.staging_dir())
+    path = Path.join(Uploads.staging_dir(), "clipe-#{Ecto.UUID.generate()}.mp4")
+    voice = narration && speak(narration)
 
-    args = [
-      "-y",
-      "-loglevel",
-      "error",
-      "-f",
-      "lavfi",
-      "-i",
-      source(style, width, height, seconds),
-      "-t",
-      Integer.to_string(seconds),
-      "-vf",
-      text_filter(title),
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "30",
-      "-pix_fmt",
-      "yuv420p",
-      "-movflags",
-      "+faststart",
-      "-an",
-      path
-    ]
+    # A voz é mais curta que o vídeo: o resto é silêncio.
+    audio = if voice, do: ["-i", voice, "-af", "apad", "-c:a", "aac"], else: ["-an"]
 
-    case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
-      {_output, 0} -> {:ok, url}
-      {output, _status} -> {:error, output}
+    args =
+      ["-y", "-loglevel", "error", "-f", "lavfi", "-i", source(style, width, height, seconds)] ++
+        audio ++
+        ["-t", Integer.to_string(seconds), "-vf", text_filter(title)] ++
+        ~w(-c:v libx264 -preset veryfast -crf 30 -pix_fmt yuv420p -movflags +faststart) ++
+        [path]
+
+    result =
+      case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
+        {_output, 0} -> {:ok, path}
+        {output, _status} -> {:error, output}
+      end
+
+    if voice, do: File.rm(voice)
+    result
+  end
+
+  # A legenda lida em voz alta, num WAV temporário. Sem espeak-ng, sem voz.
+  defp speak(text) do
+    wav = Path.join(System.tmp_dir!(), "voz-#{Ecto.UUID.generate()}.wav")
+
+    with exe when is_binary(exe) <- System.find_executable("espeak-ng"),
+         {_, 0} <-
+           System.cmd(exe, ["-v", "pt-br", "-s", "150", "-w", wav, text], stderr_to_stdout: true) do
+      wav
+    else
+      _ -> nil
     end
   end
 

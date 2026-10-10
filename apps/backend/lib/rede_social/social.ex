@@ -6,7 +6,9 @@ defmodule RedeSocial.Social do
 
   import Ecto.Query
 
+  alias Ecto.Multi
   alias RedeSocial.{Accounts, Media, Repo}
+  alias RedeSocial.Media.TranscodeWorker
   alias RedeSocial.Accounts.Account
   alias RedeSocial.Social.{Follow, Like, MonthlyViews, Post, Save, View}
 
@@ -19,29 +21,56 @@ defmodule RedeSocial.Social do
   Publica um post. Só contas verificadas publicam, e só quem pode receber por
   anúncios (gov.br prata ou ouro) consegue ligar anúncios no próprio vídeo.
 
+  A mídia vem de um envio (`{:upload, id}`) ou de um arquivo de formulário.
+  O tipo do post sai do arquivo: foto, vídeo ou, se for em pé e curto, short.
+  Vídeo nasce processando e entra na fila de conversão.
+
   A rede não guarda categoria, tema nem tag de post nenhum. O que decide quem
   vê o quê é o grafo de curtidas, views e seguidores.
   """
-  def create_post(%Account{} = author, attrs, upload \\ nil) do
+  def create_post(%Account{} = author, attrs, media \\ nil) do
+    attrs = Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
+
     attrs =
-      attrs
-      |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      if Accounts.can_monetize?(author),
+        do: attrs,
+        else: Map.merge(attrs, %{"monetized" => false, "ad_markers" => []})
 
-    if Accounts.verified?(author) do
-      attrs =
-        if Accounts.can_monetize?(author),
-          do: attrs,
-          else: Map.merge(attrs, %{"monetized" => false, "ad_markers" => []})
+    with true <- Accounts.verified?(author) || {:error, :not_verified},
+         {:ok, fields} <- Media.prepare(author, media) do
+      insert_post(author, attrs, fields)
+    end
+  end
 
-      with {:ok, media_path} <- Media.store(upload, parse_kind(attrs["kind"])),
-           {:ok, post} <-
-             %Post{author_id: author.id, media_path: media_path}
-             |> Post.changeset(attrs)
-             |> Repo.insert() do
+  defp insert_post(author, attrs, nil) do
+    with {:ok, post} <- %Post{author_id: author.id} |> Post.changeset(attrs) |> Repo.insert() do
+      {:ok, Repo.preload(post, :author)}
+    end
+  end
+
+  defp insert_post(author, attrs, %{kind: kind} = fields) do
+    {asset, fields} = Map.pop(fields, :asset)
+
+    post =
+      %Post{author_id: author.id, media_asset_id: asset && asset.id}
+      |> struct(Map.delete(fields, :kind))
+      |> Post.changeset(Map.put(attrs, "kind", kind))
+
+    Multi.new()
+    |> then(&if(asset, do: Multi.insert(&1, :asset, asset), else: &1))
+    |> Multi.insert(:post, post)
+    |> then(
+      &if(asset, do: Oban.insert(&1, :job, TranscodeWorker.new(%{asset_id: asset.id})), else: &1)
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{post: post}} ->
         {:ok, Repo.preload(post, :author)}
-      end
-    else
-      {:error, :not_verified}
+
+      {:error, _step, reason, _changes} ->
+        if asset, do: File.rm(asset.source_path)
+        if fields[:media_path], do: Media.delete(fields)
+        {:error, reason}
     end
   end
 
@@ -56,6 +85,7 @@ defmodule RedeSocial.Social do
   def get_post(id, viewer) do
     Post
     |> where([p], p.id == ^id and is_nil(p.removed_at))
+    |> ready_or_own(viewer)
     |> visible_to(viewer)
     |> preload(:author)
     |> Repo.one()
@@ -86,6 +116,15 @@ defmodule RedeSocial.Social do
           )
   end
 
+  @doc """
+  Vídeo ainda processando (ou que falhou) só aparece para quem publicou,
+  que assim acompanha a conversão.
+  """
+  def ready_or_own(query, nil), do: where(query, [p], p.media_status == :ready)
+
+  def ready_or_own(query, %Account{id: viewer_id}),
+    do: where(query, [p], p.media_status == :ready or p.author_id == ^viewer_id)
+
   @doc "Se quem está vendo pode ver os posts desta conta."
   def can_see_posts?(%Account{} = author, viewer) do
     cond do
@@ -102,6 +141,7 @@ defmodule RedeSocial.Social do
   def list_author_posts(%Account{id: author_id}, viewer, limit \\ 60) do
     Post
     |> where([p], p.author_id == ^author_id and is_nil(p.removed_at))
+    |> ready_or_own(viewer)
     |> visible_to(viewer)
     |> order_by([p], desc: p.inserted_at, desc: p.id)
     |> limit(^limit)
@@ -112,7 +152,7 @@ defmodule RedeSocial.Social do
   @doc "Posts mais recentes dos tipos pedidos. São os candidatos que o motor vai ordenar."
   def candidates(viewer, kinds, limit) do
     Post
-    |> where([p], p.kind in ^kinds and is_nil(p.removed_at))
+    |> where([p], p.kind in ^kinds and is_nil(p.removed_at) and p.media_status == :ready)
     |> visible_to(viewer)
     |> order_by([p], desc: p.inserted_at, desc: p.id)
     |> limit(^limit)
@@ -138,12 +178,6 @@ defmodule RedeSocial.Social do
 
   def count_removed do
     Repo.aggregate(from(p in Post, where: not is_nil(p.removed_at)), :count)
-  end
-
-  defp parse_kind(kind) when is_atom(kind), do: kind
-
-  defp parse_kind(kind) do
-    Enum.find(Post.kinds(), &(Atom.to_string(&1) == kind))
   end
 
   ## Curtidas, salvamentos e contagens

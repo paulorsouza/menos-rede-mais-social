@@ -6,10 +6,21 @@ defmodule RedeSocialWeb.PostController do
 
   action_fallback RedeSocialWeb.FallbackController
 
+  @doc """
+  Publica. A mídia vem de um envio já completo (`upload_id`, o caminho do
+  app) ou de um arquivo no próprio formulário (`media`, só fotos pequenas).
+  """
   def create(conn, params) do
     attrs = Map.take(params, ~w(kind body alt_text monetized ad_markers))
 
-    with {:ok, post} <- Social.create_post(conn.assigns.current_account, attrs, params["media"]) do
+    media =
+      case params do
+        %{"upload_id" => id} when is_binary(id) -> {:upload, id}
+        %{"media" => %Plug.Upload{} = upload} -> upload
+        _ -> nil
+      end
+
+    with {:ok, post} <- Social.create_post(conn.assigns.current_account, attrs, media) do
       conn
       |> put_status(:created)
       |> json(%{post: Present.post(post)})

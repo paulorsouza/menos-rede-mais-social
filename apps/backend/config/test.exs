@@ -17,17 +17,25 @@ config :rede_social, RedeSocial.Repo,
 config :rede_social, :cpf_fingerprint_key, "chave-de-teste-nao-usar-em-producao"
 config :rede_social, :registro_signing_seed, "v1kBGtGfy8gvh9NL0xu0vayHCgOzUVShKFC8d+Xb5s4="
 
-# Nos testes o motor é simulado com Req.Test, e os uploads vão para tmp/. O
+# Nos testes o motor é simulado com Req.Test, e as mídias vão para tmp/. O
 # cofre do CPF usa um falso que imita as regras do motor, e a limpeza dos
 # registros de acesso não roda sozinha.
 config :rede_social,
   engine_req_options: [plug: {Req.Test, RedeSocial.Engine}],
-  uploads_dir: "tmp/test_uploads",
+  staging_dir: "tmp/test_staging",
   vault: RedeSocial.Vault.Fake,
   access_log_janitor: false,
   registro_watcher: false,
+  live_watcher: false,
   graph_photographer: false,
   govbr_req_options: [plug: {Req.Test, RedeSocial.GovBr}]
+
+config :rede_social, RedeSocial.Storage,
+  adapter: RedeSocial.Storage.Local,
+  root: "tmp/test_media"
+
+# A fila não roda sozinha: cada teste roda os trabalhos que precisa.
+config :rede_social, Oban, testing: :manual
 
 config :rede_social, :govbr,
   client_id: "cliente-de-teste",

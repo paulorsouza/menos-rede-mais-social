@@ -26,6 +26,48 @@ defmodule RedeSocialWeb.FallbackController do
     error(conn, :unprocessable_entity, "Formato de arquivo não aceito.")
   end
 
+  def call(conn, {:error, :minor_live}) do
+    error(conn, :forbidden, "Contas de menores de idade não fazem live.")
+  end
+
+  def call(conn, {:error, :too_large}) do
+    error(conn, :request_entity_too_large, "O arquivo passa do tamanho máximo.")
+  end
+
+  def call(conn, {:error, :too_long}) do
+    error(conn, :unprocessable_entity, "O vídeo passa da duração máxima.")
+  end
+
+  def call(conn, {:error, :invalid_length}) do
+    error(conn, :bad_request, "Informe o tamanho do arquivo em Upload-Length.")
+  end
+
+  def call(conn, {:error, :upload_not_found}) do
+    error(conn, :unprocessable_entity, "O envio não foi encontrado. Envie o arquivo de novo.")
+  end
+
+  def call(conn, {:error, :upload_incomplete}) do
+    error(conn, :conflict, "O arquivo ainda não terminou de chegar.")
+  end
+
+  def call(conn, {:error, :tus_version}) do
+    conn
+    |> put_resp_header("tus-version", "1.0.0")
+    |> error(:precondition_failed, "Use o protocolo tus 1.0.0.")
+  end
+
+  def call(conn, {:error, :tus_content_type}) do
+    error(conn, :unsupported_media_type, "Mande os bytes como application/offset+octet-stream.")
+  end
+
+  def call(conn, {:error, :tus_offset}) do
+    error(
+      conn,
+      :conflict,
+      "O Upload-Offset não confere. Pergunte com HEAD quantos bytes chegaram."
+    )
+  end
+
   def call(conn, {:error, :self_follow}) do
     error(conn, :unprocessable_entity, "Você não pode seguir a si mesmo.")
   end

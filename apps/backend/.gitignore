@@ -26,5 +26,7 @@ erl_crash.dump
 rede_social-*.tar
 
 
-# Fotos e vídeos enviados em desenvolvimento.
+# Fotos e vídeos em desenvolvimento, sem S3, e a pasta de trabalho dos envios.
 /priv/uploads/
+/priv/media/
+/priv/staging/

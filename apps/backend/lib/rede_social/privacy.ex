@@ -132,8 +132,10 @@ defmodule RedeSocial.Privacy do
       media =
         all(
           from p in Post,
-            where: p.author_id == ^account.id and not is_nil(p.media_path),
-            select: p.media_path
+            where:
+              p.author_id == ^account.id and
+                (not is_nil(p.media_path) or not is_nil(p.media_asset_id)),
+            select: %{media_path: p.media_path, media_asset_id: p.media_asset_id}
         )
 
       {:ok, _account} = Repo.delete(account)

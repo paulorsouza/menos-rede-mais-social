@@ -1,14 +1,15 @@
 defmodule RedeSocial.Social.Post do
   @moduledoc """
   Um post. Pode ser texto curto (até 140 caracteres e sem respostas), foto,
-  vídeo ou short.
+  vídeo, short ou live. A live, quando acaba, vira vídeo ou short com a
+  gravação.
   """
   use Ecto.Schema
   import Ecto.Changeset
 
   alias RedeSocial.Accounts.Account
 
-  @kinds [:text, :photo, :video, :short]
+  @kinds [:text, :photo, :video, :short, :live]
   @ad_markers ~w(start middle end)
   @text_limit 140
 
@@ -17,7 +18,18 @@ defmodule RedeSocial.Social.Post do
 
     field :kind, Ecto.Enum, values: @kinds
     field :body, :string
+    # Endereço público da foto, ou da lista HLS do vídeo (master.m3u8).
     field :media_path, :string
+
+    # Vídeo nasce "processando" e só aparece para os outros quando a fila
+    # termina de converter. Foto e texto já nascem prontos.
+    field :media_status, Ecto.Enum, values: [:ready, :processing, :failed], default: :ready
+    belongs_to :media_asset, RedeSocial.Media.Asset, type: :binary_id
+    field :poster_path, :string
+    field :captions_path, :string
+    field :duration_ms, :integer
+    field :width, :integer
+    field :height, :integer
 
     # Descrição da foto para quem usa leitor de tela. Só faz sentido em foto.
     field :alt_text, :string
@@ -59,10 +71,17 @@ defmodule RedeSocial.Social.Post do
         |> put_change(:monetized, false)
         |> put_change(:ad_markers, [])
 
+      :live ->
+        changeset
+        |> put_change(:alt_text, nil)
+        |> validate_length(:body, max: 500)
+        |> put_change(:monetized, false)
+        |> put_change(:ad_markers, [])
+
       kind when kind in [:photo, :video, :short] ->
         changeset
         |> then(&if(kind == :photo, do: &1, else: put_change(&1, :alt_text, nil)))
-        |> validate_required([:media_path], message: "envie o arquivo")
+        |> validate_media()
         |> validate_length(:body, max: 500)
         |> validate_ads(kind)
 
@@ -87,6 +106,14 @@ defmodule RedeSocial.Social.Post do
         do: put_change(changeset, :monetized, false),
         else: put_change(changeset, :monetized, true)
     end)
+  end
+
+  # Vídeo processando ainda não tem endereço, mas já tem o asset na fila.
+  defp validate_media(changeset) do
+    if get_field(changeset, :media_status) == :processing and
+         get_field(changeset, :media_asset_id),
+       do: changeset,
+       else: validate_required(changeset, [:media_path], message: "envie o arquivo")
   end
 
   defp blank_to_nil(nil), do: nil

@@ -117,6 +117,42 @@ if config_env() == :prod do
   # Check `Plug.SSL` for all available options in `force_ssl`.
 end
 
+# Armazenamento de objetos no padrão S3 (na demo com Docker, o Garage). Os
+# testes usam sempre a pasta local, mesmo rodando dentro do Docker.
+s3_endpoint = if config_env() != :test, do: System.get_env("S3_ENDPOINT")
+
+if s3_endpoint do
+  config :rede_social, RedeSocial.Storage,
+    adapter: RedeSocial.Storage.S3,
+    endpoint: s3_endpoint,
+    bucket: System.get_env("S3_BUCKET", "midia"),
+    region: System.get_env("S3_REGION", "garage"),
+    access_key_id: System.fetch_env!("S3_ACCESS_KEY_ID"),
+    secret_access_key: System.fetch_env!("S3_SECRET_ACCESS_KEY")
+end
+
+# Endereço da CDN, quando ela fica em outro domínio. Sem ele, o app pede as
+# mídias em /media, no mesmo endereço.
+if media_base_url = System.get_env("MEDIA_BASE_URL") do
+  config :rede_social, :media_base_url, media_base_url
+end
+
+# Serviço de legendas automáticas (whisper.cpp). Sem ele, vídeo fica sem legenda.
+whisper_url = if config_env() != :test, do: System.get_env("WHISPER_URL")
+
+if whisper_url do
+  config :rede_social, :whisper_url, whisper_url
+end
+
+# Servidor de lives (MediaMTX, em infra/ao-vivo).
+if live_api = System.get_env("AO_VIVO_API") do
+  config :rede_social, :ao_vivo,
+    api: live_api,
+    secret: System.fetch_env!("AO_VIVO_SEGREDO"),
+    recordings_dir: System.get_env("GRAVACOES_DIR", "/gravacoes"),
+    rtmp_url: System.get_env("AO_VIVO_RTMP_URL")
+end
+
 # Réplica de leitura do PostgreSQL para as consultas pesadas do feed.
 if replica_url = System.get_env("DATABASE_REPLICA_URL") do
   config :rede_social, RedeSocial.Repo.Replica,

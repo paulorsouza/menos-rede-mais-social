@@ -30,10 +30,11 @@ defmodule RedeSocialWeb.Endpoint do
     only: RedeSocialWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 
-  # Fotos e vídeos enviados pelas pessoas.
+  # Fotos e vídeos prontos, quando ficam numa pasta local (sem S3). Com S3,
+  # quem serve /media é a borda (infra/borda).
   plug Plug.Static,
-    at: "/uploads",
-    from: Application.compile_env(:rede_social, :uploads_dir, "priv/uploads")
+    at: "/media",
+    from: Application.compile_env(:rede_social, [RedeSocial.Storage, :root], "priv/media")
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
@@ -46,8 +47,9 @@ defmodule RedeSocialWeb.Endpoint do
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,
-    # Vídeos podem passar dos 8 MB do padrão.
-    parsers: [:urlencoded, {:multipart, length: 200_000_000}, :json],
+    # Vídeo chega pelo envio que retoma (/api/envios), que lê o corpo por
+    # conta própria. Formulário com arquivo fica para fotos e testes.
+    parsers: [:urlencoded, {:multipart, length: 25_000_000}, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 
