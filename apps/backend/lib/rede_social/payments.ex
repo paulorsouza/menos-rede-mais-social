@@ -132,8 +132,12 @@ defmodule RedeSocial.Payments do
     carry = carried_from_previous(month)
     inputs = creator_months(label, salt, video, shorts, carry)
 
-    with {:ok, %{"results" => results, "params_sha256" => params_sha}} <-
+    with {:ok, %{"results" => results, "params_sha256" => params_sha} = closed} <-
            Engine.close_month(Map.values(inputs)) do
+      bonus = Map.get(closed, "bonus") || %{}
+      bonus_pool = Map.get(bonus, "pool_cents", 0)
+      bonus_views = Map.get(bonus, "eligible_views", 0)
+
       leaves =
         results
         |> Enum.flat_map(& &1["leaves"])
@@ -142,7 +146,9 @@ defmodule RedeSocial.Payments do
 
       root = leaves |> Merkle.levels() |> Merkle.levels_root()
       revenue = Enum.sum_by(video, & &1.revenue) + Enum.sum_by(shorts, & &1.revenue_cents)
-      earned = Enum.sum_by(results, &(&1["video_cents"] + &1["shorts_cents"]))
+
+      earned =
+        Enum.sum_by(results, &(&1["video_cents"] + &1["shorts_cents"] + (&1["bonus_cents"] || 0)))
 
       Multi.new()
       |> Multi.insert(:month, %Month{
@@ -154,6 +160,8 @@ defmodule RedeSocial.Payments do
         revenue_cents: revenue,
         creators_cents: earned,
         fund_cents: revenue - earned,
+        bonus_pool_cents: bonus_pool,
+        bonus_eligible_views: bonus_views,
         closed_at: now
       })
       |> Multi.run(:leaves, fn repo, %{month: closed} ->
@@ -180,6 +188,8 @@ defmodule RedeSocial.Payments do
           receita_centavos: revenue,
           criadores_centavos: earned,
           fundo_centavos: revenue - earned,
+          bonus_centavos: bonus_pool,
+          bonus_views_elegiveis: bonus_views,
           parametros_sha256: params_sha,
           em: closed.closed_at
         })
@@ -470,7 +480,8 @@ defmodule RedeSocial.Payments do
     %{
       sobre:
         "Extrato de um mês, para conferir com o verificador aberto: " <>
-          "verificador pagamento extrato.json --parametros params/ads.toml --registro entradas.json",
+          "verificador pagamento extrato.json --parametros params/ads.toml " <>
+          "--registro entradas.json --cabecalho registro.json",
       mes: Calendar.strftime(month.month, "%Y-%m"),
       criador: payout.account_id,
       parametros_sha256: month.params_sha256,
@@ -479,7 +490,8 @@ defmodule RedeSocial.Payments do
       fechamento: %{
         raiz: Base.encode16(month.root, case: :lower),
         folhas: month.leaves_count,
-        registro: month.registro_position
+        registro: month.registro_position,
+        bonus: %{pool_cents: month.bonus_pool_cents, eligible_views: month.bonus_eligible_views}
       },
       provas: proofs,
       repasse: %{

@@ -138,6 +138,11 @@ defmodule RedeSocial.EngineStub do
         }
       end)
 
-    %{"results" => results, "params_sha256" => "abc123", "params_version" => 2}
+    %{
+      "results" => results,
+      "bonus" => %{"pool_cents" => 0, "eligible_views" => 0},
+      "params_sha256" => "abc123",
+      "params_version" => 3
+    }
   end
 end

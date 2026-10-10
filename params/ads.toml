@@ -1,9 +1,10 @@
 # Parâmetros públicos de anúncios e de pagamento a criadores
 # (services/ads-engine).
 #
-# Os valores abaixo são ILUSTRATIVOS. Os números finais dependem de decisão do
-# conselho (veja a seção 6 do plano). Qualquer mudança passa por RFC e entra
-# no log público antes de valer. Ao mudar, aumente `version`.
+# Faixas, proporções e o destino da diferença são os decididos na seção 13
+# do plano; os preços ainda são ilustrativos até alguém operar a rede.
+# Qualquer mudança passa por RFC e entra no log público antes de valer. Ao
+# mudar, aumente `version`.
 version = 3
 
 # Nos shorts, entra um anúncio a cada N shorts assistidos.
@@ -13,8 +14,8 @@ shorts_ad_every = 6
 # Quanto o criador recebe por mil views com anúncio, na primeira faixa, em
 # centavos. Com o preço nacional abaixo (R$ 20,00 por mil exibições), quem
 # está na primeira faixa fica com 55% do que o anunciante pagou. As faixas
-# reduzem essa parte conforme o criador cresce; a diferença vai para o fundo
-# ou para criadores pequenos (decisão em aberto, seção 13 do plano).
+# reduzem essa parte conforme o criador cresce; a diferença vira bônus para
+# os criadores pequenos (band_difference, abaixo).
 base_cents_per_thousand = 1100
 # Uma view com anúncio regional vale esta porcentagem de uma view com anúncio
 # nacional, porque o anúncio regional custa menos para quem anuncia.
@@ -26,6 +27,10 @@ creator_share_percent = 55
 # short com anúncio ligado vale uma parte) ou "tempo-assistido". Partes
 # iguais não depende do tempo que o app informa.
 shorts_split = "partes-iguais"
+# O que as faixas deixam de pagar a quem cresceu: "bonus-pequenos" divide
+# entre os criadores que ficaram na primeira faixa no mês, pelas views de
+# cada um; "fundo" deixa com o fundo de infraestrutura.
+band_difference = "bonus-pequenos"
 # Repasse menor que isto fica para o mês seguinte: um PIX de centavos custa
 # mais do que vale. Nada se perde, o saldo só espera.
 minimum_payout_cents = 100

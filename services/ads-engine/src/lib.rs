@@ -14,7 +14,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 pub use params::{
-    Antifraud, Delivery, Params, ParamsError, Payout, PayoutBand, Pricing, ShortsSplit,
+    Antifraud, BandDifference, Delivery, Params, ParamsError, Payout, PayoutBand, Pricing,
+    ShortsSplit,
 };
 
 pub type UserId = u64;

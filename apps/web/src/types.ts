@@ -161,6 +161,7 @@ export interface Statement {
   video_cents: number
   shorts: { id: number; at: number; revenue_cents: number; my_cents: number }[]
   shorts_cents: number
+  bonus_cents: number
   carry_in_cents: number
   total_cents: number
   payable: boolean

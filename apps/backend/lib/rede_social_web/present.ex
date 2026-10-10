@@ -208,6 +208,7 @@ defmodule RedeSocialWeb.Present do
           }
         end),
       shorts_cents: result["shorts_cents"],
+      bonus_cents: result["bonus_cents"] || 0,
       carry_in_cents: result["carry_in_cents"],
       total_cents: result["total_cents"],
       payable: result["payable"],

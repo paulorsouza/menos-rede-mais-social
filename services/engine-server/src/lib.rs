@@ -389,23 +389,24 @@ struct CloseMonthRequest {
 #[derive(Serialize)]
 struct CloseMonthResponse {
     results: Vec<ads_engine::closing::CreatorResult>,
+    /// O bônus dos criadores pequenos do mês, para publicar no registro.
+    bonus: ads_engine::closing::Bonus,
     params_version: u32,
     params_sha256: String,
     engine_version: &'static str,
     engine_build: &'static str,
 }
 
-/// Fecha o mês: a conta de cada criador, feita só com os dados dele.
+/// Fecha o mês: a conta de cada criador, feita só com os dados dele, mais a
+/// parte do bônus dos criadores pequenos.
 async fn close_month(
     State(engines): Shared,
     Json(request): Json<CloseMonthRequest>,
 ) -> Json<CloseMonthResponse> {
+    let (results, bonus) = ads_engine::closing::close_all(&request.creators, &engines.ads);
     Json(CloseMonthResponse {
-        results: request
-            .creators
-            .iter()
-            .map(|month| ads_engine::closing::close(month, &engines.ads))
-            .collect(),
+        results,
+        bonus,
         params_version: engines.ads.version,
         params_sha256: engines.ads_file.sha256.clone(),
         engine_version: ENGINE_VERSION,

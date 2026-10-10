@@ -178,17 +178,17 @@ Só vídeos e shorts têm anúncio. O criador decide se quer anúncio, e toda a 
 | De 1 milhão a 10 milhões | 50% |
 | Acima de 10 milhões | 30% |
 
-Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês, o criador recebe o equivalente a 1,275 milhão de views no valor base. Decisão em aberto: a diferença vai para o fundo de infraestrutura ou para um bônus de criadores pequenos.
+Exemplo: com 2 milhões de views no mês, o criador recebe o equivalente a 1,275 milhão de views no valor base. A diferença que as faixas deixam de pagar a quem cresceu vira bônus para os criadores pequenos: no fechamento, ela é dividida entre quem ficou na primeira faixa no mês, pelas views de cada um. O total do bônus e a soma das views elegíveis vão para o registro público, e cada criador confere a própria parte no verificador.
 
 ### Anúncio regional
 
-- Comprado por município ou estado. Custa menos por exibição e paga menos ao criador.
+- Comprado por município. Custa menos por exibição e paga menos ao criador.
 - Aparece só para quem assiste daquela região, de preferência nos vídeos de criadores grandes, onde há audiência local suficiente. É assim que a padaria do bairro alcança muita gente.
 - A região do espectador é aproximada (pela conexão ou pelo município informado). Localização precisa nunca é usada.
 
 ### Divisão e pagamento
 
-- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Nos valores ilustrativos de hoje, quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; a proporção final é decisão em aberto.
+- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; o resto paga a infraestrutura. A proporção pode mudar por RFC quando houver custo real medido.
 - O fechamento é mensal, no dia 1º, com repasse por PIX. Abaixo de R$ 1,00 o saldo espera o mês seguinte, porque um PIX de centavos custa mais do que vale.
 - A chave PIX precisa estar no CPF do próprio criador. O banco diz de quem é a chave, e a rede confere pela impressão digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF.
 - Cada criador tem um extrato aberto: views com anúncio por vídeo, as que não contaram e por quê, a faixa aplicada e a parte de cada anúncio dos shorts. O cálculo pode ser verificado por qualquer pessoa (seção 9).
@@ -411,6 +411,7 @@ Feito:
 - Entrega no ritmo do dia: o motor só deixa a campanha mostrar a parte do dia que já passou, pelo peso de cada hora, e não deixa um anúncio nacional gastar numa cidade mais do que a parte dela na audiência. Entre as que cabem, sai a mais atrasada.
 - O anúncio dentro do vídeo é registrado no ponto que o criador marcou. É ele que paga o criador, pelas faixas.
 - Anúncio dos shorts dividido em partes iguais entre os shorts do bloco, com a parte do fundo separada na hora.
+- Bônus dos criadores pequenos: a diferença das faixas é dividida no fechamento entre quem ficou na primeira faixa, com o total e as views elegíveis no registro e a parte de cada um conferida pelo verificador.
 - Encerramento das campanhas: no dia seguinte ao fim, o que não foi entregue volta por PIX para quem pagou (devolução do PIX recebido).
 - Antifraude: só conta view de conta verificada, uma vez por vídeo por pessoa por dia e no máximo dez por criador por dia. Nos shorts, a parte dos criadores de um anúncio visto por conta básica fica com o fundo, e o extrato mostra isso.
 - Só conta anúncio que a rede mostrou: cada um vira uma exibição, que o app devolve ao avisar que o anúncio passou. A campanha só conta dentro das datas compradas e até o total comprado.
@@ -427,7 +428,6 @@ Falta:
 - O gov.br da empresa, para confirmar que quem anuncia responde pelo CNPJ. Na demo, basta um CNPJ válido.
 - Chave PIX em CNPJ para criador que recebe como empresa.
 - Auditoria externa de segurança e de pagamentos, e revisão jurídica: são o portão.
-- As decisões de faixas, proporções e destino da diferença (seção 13).
 
 ### Fase 5 · Piloto
 
@@ -501,6 +501,10 @@ Já decidido:
 - [x] Lives sem anúncio
 - [x] Apostas e publicidade de governo não anunciam; órgão público só com campanha de utilidade pública
 - [x] Devolução ao anunciante, por PIX, do que a campanha não entregou
+- [x] Faixas do pagamento decrescente: 100% até 100 mil views, 75% até 1 milhão, 50% até 10 milhões e 30% acima
+- [x] A diferença das faixas vira bônus para os criadores que ficaram na primeira faixa no mês
+- [x] 55% da receita de cada anúncio para o criador e 45% para o fundo, até haver custo real medido
+- [x] Anúncio regional por município
 - [x] Regra pétrea 3: anúncio usa só a região aproximada; "o conteúdo do vídeo" fica sem uso, porque a rede não classifica posts
 
 Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
@@ -508,9 +512,5 @@ Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem espe
 - [ ] De onde vem a idade. O Login Único não informa a data de nascimento: precisa de convênio com outra base do governo ou de outro mecanismo que o ECA Digital aceite
 
 - [ ] Orçamento por hora de vídeo, que fecha o portão da Fase 3
-- [ ] Faixas e percentuais do pagamento decrescente
-- [ ] Destino da diferença das faixas: fundo de infraestrutura ou bônus para criadores pequenos
-- [ ] Proporção da receita entre criador e fundo de infraestrutura (hoje, 55% ilustrativo)
-- [ ] Anúncio regional por município ou por estado
 - [ ] Forma jurídica da entidade gestora
 - [ ] Quem são os 5 guardiões da cópia cifrada do CPF
