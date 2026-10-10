@@ -339,6 +339,23 @@ export interface AppealItem {
 }
 
 /** Uma ordem judicial de identificação, para o setor jurídico. */
+export interface RemovalRequest {
+  id: number
+  post_id: number | null
+  post_body: string | null
+  kind: 'judicial' | 'outro'
+  authority: string
+  legal_basis: string
+  case_number: string | null
+  secret_case: boolean
+  status: 'recebido' | 'cumprido' | 'recusado'
+  rule: number | null
+  refusal_reason: string | null
+  created_at: string
+  decided_at: string | null
+  registro_position: number | null
+}
+
 export interface IdentificationOrder {
   id: number
   nickname: string | null

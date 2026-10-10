@@ -179,7 +179,10 @@ defmodule RedeSocial.Feed do
           },
           recentes: %{
             ligacoes: for({nil, item} <- Enum.with_index(edge_proofs), do: item),
-            seguindo: for({nil, {number, _at}} <- Enum.zip(follow_proofs, follows), do: number)
+            seguindo:
+              for {nil, {number, at}} <- Enum.zip(follow_proofs, follows) do
+                %{seguido: number, desde: at}
+              end
           }
         }
     end

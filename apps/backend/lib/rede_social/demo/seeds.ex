@@ -450,7 +450,8 @@ defmodule RedeSocial.Demo.Seeds do
     create_reports(crowd, personas, now)
 
     # O primeiro retrato do grafo, para a conta do feed já sair com provas.
-    {:ok, _snapshot} = RedeSocial.GraphCommitments.take_snapshot()
+    {:ok, _snapshot} =
+      RedeSocial.GraphCommitments.take_snapshot(DateTime.add(DateTime.utc_now(), 1))
 
     campaigns = create_campaigns(personas)
     create_last_month(personas, crowd, posts, campaigns)

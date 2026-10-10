@@ -172,5 +172,9 @@ if config_env() == :prod do
     # Semente (32 bytes em base64) da chave que assina o registro público.
     registro_signing_seed:
       System.get_env("REGISTRO_CHAVE") ||
-        raise("a variável de ambiente REGISTRO_CHAVE não foi definida")
+        raise("a variável de ambiente REGISTRO_CHAVE não foi definida"),
+    # O mesmo segredo vai para a CDN, que confere os endereços de mídia.
+    media_link_secret:
+      System.get_env("MEDIA_LINK_SECRET") ||
+        raise("a variável de ambiente MEDIA_LINK_SECRET não foi definida")
 end

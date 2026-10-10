@@ -12,6 +12,8 @@ config :rede_social, RedeSocial.Repo,
 
 # Chave da impressão digital do CPF, só para desenvolvimento.
 config :rede_social, :cpf_fingerprint_key, "chave-de-desenvolvimento-nao-usar-em-producao"
+# Assina os endereços de mídia. A borda da demo usa o mesmo (docker-compose.yml).
+config :rede_social, :media_link_secret, System.get_env("MEDIA_LINK_SECRET", "demo-midia")
 
 # Na demonstração o grafo é retratado a cada meia hora; em produção, uma vez por dia.
 config :rede_social, :graph_snapshot_minutes, 30

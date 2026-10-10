@@ -8,6 +8,7 @@ import type {
   Statement,
   Dashboard,
   IdentificationOrder,
+  RemovalRequest,
   FeedResponse,
   GovBrLevel,
   Me,
@@ -159,6 +160,20 @@ export const api = {
     post<{ order: IdentificationOrder }>(`/identification/orders/${orderId}/simulate/${guardian}`),
   openOrder: (orderId: number) =>
     post<{ result: OpenedOrder; order: IdentificationOrder }>(`/identification/orders/${orderId}/open`),
+
+  removals: () => request<{ requests: RemovalRequest[] }>('/identification/removals'),
+  createRemoval: (removal: {
+    post: string
+    kind: 'judicial' | 'outro'
+    authority: string
+    legal_basis: string
+    case_number: string
+    secret_case: boolean
+  }) => post<{ request: RemovalRequest }>('/identification/removals', removal),
+  complyRemoval: (id: number, rule?: number) =>
+    post<{ request: RemovalRequest }>(`/identification/removals/${id}/comply`, { rule }),
+  refuseRemoval: (id: number, reason: string) =>
+    post<{ request: RemovalRequest }>(`/identification/removals/${id}/refuse`, { reason }),
 
   dashboard: () => request<Dashboard>('/creator/dashboard'),
   setPixKey: (key: string) => post<{ pix_key: { kind: string; hint: string } }>('/creator/pix', { key }),

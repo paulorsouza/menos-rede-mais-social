@@ -7,6 +7,11 @@
 #
 # A demo abre em http://localhost:5173. Se a porta 5432 já estiver ocupada na
 # sua máquina, escolha outra no arquivo .env (DB_PORT=5433).
+#
+# As portas só abrem para a própria máquina: banco, motor (com as fatias de
+# teste do cofre), backend e borda não ficam visíveis na rede local. Para
+# abrir a demo num celular da mesma rede, use WEB_BIND=0.0.0.0 no .env. As
+# portas das lives (1935 e 8189) ficam abertas, para o OBS e o celular.
 
 # Chave do backend no Garage. Vale só para a demo.
 x-s3: &s3
@@ -21,7 +26,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -35,7 +40,7 @@ services:
       context: .
       dockerfile: services/engine-server/Dockerfile
     ports:
-      - "7070:7070"
+      - "127.0.0.1:7070:7070"
     volumes:
       # Os parâmetros públicos do repositório, os mesmos que o motor publica
       # na página de transparência.
@@ -73,9 +78,13 @@ services:
   borda:
     image: nginx:1.28-alpine
     ports:
-      - "${BORDA_PORT:-8090}:8080"
+      - "127.0.0.1:${BORDA_PORT:-8090}:8080"
+    environment:
+      # O mesmo segredo do backend: a borda confere os endereços assinados.
+      MEDIA_LINK_SECRET: demo-midia
     volumes:
-      - ./infra/borda/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # O nginx troca ${MEDIA_LINK_SECRET} no modelo ao subir.
+      - ./infra/borda/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:
       - garage
 
@@ -124,9 +133,10 @@ services:
       WHISPER_URL: http://legendas:8080
       AO_VIVO_API: http://ao-vivo:9997
       AO_VIVO_SEGREDO: demo-ao-vivo
+      MEDIA_LINK_SECRET: demo-midia
       GRAVACOES_DIR: /gravacoes
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     volumes:
       - ./apps/backend:/app
       # Os parâmetros públicos de vídeo (params/video.toml).
@@ -159,7 +169,7 @@ services:
       LIVE_URL: http://ao-vivo
       VITE_POLLING: "1"
     ports:
-      - "5173:5173"
+      - "${WEB_BIND:-127.0.0.1}:5173:5173"
     volumes:
       - ./apps/web:/app
       - web-node-modules:/app/node_modules

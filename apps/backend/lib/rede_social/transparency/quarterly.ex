@@ -1,8 +1,9 @@
 defmodule RedeSocial.Transparency.Quarterly do
   @moduledoc """
   O relatório de transparência de cada trimestre (seção 5 do plano): remoções
-  por regra, recursos, denúncias, ordens judiciais, anúncios recusados e as
-  contas dos meses fechados.
+  por regra, recursos, denúncias, ordens judiciais, pedidos de remoção vindos
+  de fora (com quem pediu e a base legal), anúncios recusados e as contas dos
+  meses fechados.
 
   Fecha no primeiro dia depois do trimestre. O texto publicado é JSON
   canônico, e o hash dele entra no registro público: quem baixa o relatório
@@ -12,7 +13,7 @@ defmodule RedeSocial.Transparency.Quarterly do
 
   import Ecto.Query
 
-  alias RedeSocial.{Registro, Repo}
+  alias RedeSocial.{Registro, RemovalRequests, Repo}
   alias RedeSocial.Ads.Campaign
   alias RedeSocial.Identification.Order
   alias RedeSocial.Moderation.{Action, Appeal, Report}
@@ -53,6 +54,7 @@ defmodule RedeSocial.Transparency.Quarterly do
       ate: Date.add(Date.shift(first, month: 3), -1),
       moderacao: moderation(from, to),
       ordens_judiciais: orders(from, to),
+      pedidos_de_remocao: RemovalRequests.summary(from, to),
       anuncios: ads(from, to),
       contas: accounts(first)
     }

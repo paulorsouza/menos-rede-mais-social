@@ -22,6 +22,8 @@ docker compose --profile legendas up --build
 
 Se a porta 5432 já estiver em uso na sua máquina, crie um arquivo `.env` na raiz com `DB_PORT=5433`. A borda usa a 8090 (`BORDA_PORT`), as lives usam a 1935 (RTMP, para o OBS) e a 8189 (WebRTC).
 
+As portas só abrem para a sua máquina. Para abrir a demo num celular da mesma rede, ponha `WEB_BIND=0.0.0.0` no `.env`.
+
 Para voltar a demo ao estado inicial:
 
 ```bash
@@ -108,13 +110,13 @@ sha256sum result/bin/engine-server
 
 ```bash
 cd services
-cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json
+cargo run -p verificador -- feed conta-do-feed.json --parametros ../params/feed.toml --registro entradas.json --cabecalho registro.json
 ```
 
 **O seu pagamento seguiu a fórmula.** No painel do criador, abra um mês em "Extratos" e baixe o arquivo. O verificador refaz o fechamento com o código do motor de anúncios e confere que cada linha está na árvore publicada no registro.
 
 ```bash
-cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json
+cargo run -p verificador -- pagamento extrato.json --parametros ../params/ads.toml --registro entradas.json --cabecalho registro.json
 ```
 
 **O registro público não foi reescrito.** Baixe o cabeçalho e as entradas na página de transparência (ou em `/api/registro` e `/api/registro/entradas`). Guarde o cabeçalho; da próxima vez, a prova de consistência mostra que nada do que estava nele foi trocado ou apagado.

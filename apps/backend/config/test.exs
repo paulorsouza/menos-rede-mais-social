@@ -15,6 +15,7 @@ config :rede_social, RedeSocial.Repo,
 
 # Chave da impressão digital do CPF, só para testes.
 config :rede_social, :cpf_fingerprint_key, "chave-de-teste-nao-usar-em-producao"
+config :rede_social, :media_link_secret, "segredo-de-teste"
 config :rede_social, :registro_signing_seed, "v1kBGtGfy8gvh9NL0xu0vayHCgOzUVShKFC8d+Xb5s4="
 
 # Nos testes o motor é simulado com Req.Test, e as mídias vão para tmp/. O

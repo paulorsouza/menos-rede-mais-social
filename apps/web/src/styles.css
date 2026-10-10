@@ -3214,7 +3214,10 @@ section[id] {
   background: var(--surface);
 }
 
-.order-form input:not([type='checkbox']) {
+.order-form input:not([type='checkbox']),
+.order-form select,
+.removal-decide input,
+.removal-decide select {
   height: 40px;
   padding: 0 12px;
   border: 1px solid var(--line);
@@ -3236,6 +3239,21 @@ section[id] {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.removals {
+  margin-top: 32px;
+}
+
+.removal-decide {
+  flex-wrap: wrap;
+}
+
+.removal-decide input,
+.removal-decide select {
+  height: 34px;
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
 .orders {
