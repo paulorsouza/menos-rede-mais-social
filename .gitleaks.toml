@@ -2,7 +2,8 @@
 useDefault = true
 
 [allowlist]
-description = "Chaves de desenvolvimento e teste geradas pelo Phoenix, sem uso em produção"
+description = "Chaves de desenvolvimento e teste geradas pelo Phoenix, sem uso em produção, e as chaves públicas dos guardiões, que são públicas de propósito"
 paths = [
   '''apps/backend/config/(dev|test)\.exs''',
+  '''params/guardioes\.toml''',
 ]

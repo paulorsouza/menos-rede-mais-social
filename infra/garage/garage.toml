@@ -1,0 +1,27 @@
+# Garage de demonstração: um nó só, guardando as fotos e os vídeos já
+# processados. Os segredos daqui valem só na máquina de quem roda a demo;
+# em produção eles vêm de variáveis de ambiente (GARAGE_RPC_SECRET e
+# GARAGE_ADMIN_TOKEN) e o cluster tem nós em mais de um lugar.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "6d656e6f732d726564652d6d6169732d736f6369616c2d64656d6f2d72706321"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+
+# O endpoint web serve o conteúdo dos baldes públicos para a borda, sem
+# assinatura. O balde é escolhido pelo cabeçalho Host.
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "demo-garage-admin"

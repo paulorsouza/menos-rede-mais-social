@@ -65,6 +65,8 @@ jobs:
         with:
           otp-version: "27"
           elixir-version: "1.18"
+      # Os testes de mídia geram e convertem vídeos de verdade.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
