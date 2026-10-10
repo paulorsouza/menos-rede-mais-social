@@ -49,7 +49,9 @@ config :rede_social, Oban,
      crontab: [
        {"@hourly", RedeSocial.Uploads.PurgeWorker},
        # Dia 1, às 6h (UTC), fecha o mês anterior e manda os repasses.
-       {"0 6 1 * *", RedeSocial.Payments.CloseMonthWorker}
+       {"0 6 1 * *", RedeSocial.Payments.CloseMonthWorker},
+       # No dia 1 de cada trimestre, às 7h (UTC), publica o relatório do anterior.
+       {"0 7 1 1,4,7,10 *", RedeSocial.Transparency.QuarterlyWorker}
      ]}
   ]
 

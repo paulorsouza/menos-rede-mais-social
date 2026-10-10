@@ -15,6 +15,7 @@ defmodule RedeSocial.Demo.Seeds do
   alias RedeSocial.Ads.{AdView, Advertiser, Campaign}
   alias RedeSocial.Payments.Pix
   alias RedeSocial.Demo.{Art, Clips}
+  alias RedeSocial.Transparency.Quarterly
   alias RedeSocial.Social.{Like, Post, Save, View}
 
   @personas [
@@ -453,6 +454,9 @@ defmodule RedeSocial.Demo.Seeds do
 
     campaigns = create_campaigns(personas)
     create_last_month(personas, crowd, posts, campaigns)
+
+    # O relatório do trimestre passado, já publicado.
+    {:ok, _report} = Quarterly.publish(Date.shift(Date.utc_today(), month: -3))
 
     Logger.info(
       "Dados de demonstração criados: #{map_size(personas)} pessoas e #{length(crowd)} contas de público."

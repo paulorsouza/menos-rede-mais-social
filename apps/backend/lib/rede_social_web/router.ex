@@ -46,6 +46,7 @@ defmodule RedeSocialWeb.Router do
     # Chamado pelo servidor de transmissão (infra/ao-vivo), não pelo app.
     post "/ao-vivo/autorizar", LiveController, :authorize
     get "/transparency", TransparencyController, :show
+    get "/transparency/relatorios/:quarter", TransparencyController, :quarterly
     get "/me", SessionController, :show
     delete "/session", SessionController, :delete
     get "/accounts/:nickname", AccountController, :show

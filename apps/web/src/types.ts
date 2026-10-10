@@ -207,6 +207,13 @@ export interface CampaignQuote {
   total_cents: number
 }
 
+export interface QuarterlyReport {
+  quarter: string
+  sha256: string
+  registro_position: number | null
+  published_at: string
+}
+
 export interface OpenAccountsMonth {
   month: string
   revenue_cents: number
@@ -286,6 +293,7 @@ export interface TransparencyReport {
   })[]
   ad_rules: AdRule[]
   open_accounts: OpenAccountsMonth[]
+  quarterly_reports: QuarterlyReport[]
 }
 
 /** Uma regra de conteúdo. Toda remoção cita uma delas. */

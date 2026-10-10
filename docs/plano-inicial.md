@@ -436,6 +436,7 @@ Feito no repositório:
 - Cofre do CPF preso à conta da ordem (TDH2): o guardião confere, antes de calcular a parte, que o selado foi feito para a conta que está no pedido. Uma parte com defeito não impede as outras de abrir, e o motor recusa um `guardioes.toml` incoerente.
 - Cerimônia distribuída dos guardiões (`cofre dkg`), em três passos no computador de cada guardião, com a reclamação apontando quem mandou uma subfatia errada.
 - Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX.
+- Relatório de transparência trimestral, publicado sozinho no primeiro dia de cada trimestre: denúncias e remoções por regra, recursos, ordens judiciais recebidas e cumpridas (as em segredo de justiça só na contagem), campanhas recusadas por regra e as contas dos meses. O SHA-256 do arquivo vai para o registro público, e qualquer pessoa confere o que baixou.
 
 Falta:
 
@@ -445,7 +446,8 @@ Falta:
 - Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
 - Encarregado de dados e relatório de impacto à proteção de dados.
 - Auditoria externa e recompensa por falhas. A lista de dependências já sai da CI; falta publicá-la junto de cada versão em produção.
-- Orçamento e o primeiro relatório de transparência.
+- Orçamento e o primeiro relatório de transparência com gente de verdade.
+- Pedidos de remoção vindos de autoridades ainda não têm cadastro próprio, então não entram no relatório.
 
 ## 12. Riscos
 
