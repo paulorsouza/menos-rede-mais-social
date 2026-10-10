@@ -15,13 +15,13 @@ defmodule RedeSocial.Vault do
   @callback verify(sealed :: binary(), partial :: map()) :: boolean()
   @callback open(sealed :: binary(), context :: String.t(), partials :: [map()]) ::
               {:ok, String.t()} | {:error, term()}
-  @callback demo_partial(index :: pos_integer(), sealed :: binary()) ::
+  @callback demo_partial(index :: pos_integer(), sealed :: binary(), context :: String.t()) ::
               {:ok, map()} | {:error, term()}
 
   def seal(plaintext, context), do: impl().seal(plaintext, context)
   def verify(sealed, partial), do: impl().verify(sealed, partial)
   def open(sealed, context, partials), do: impl().open(sealed, context, partials)
-  def demo_partial(index, sealed), do: impl().demo_partial(index, sealed)
+  def demo_partial(index, sealed, context), do: impl().demo_partial(index, sealed, context)
 
   defp impl, do: Application.get_env(:rede_social, :vault, RedeSocial.Vault.Engine)
 end

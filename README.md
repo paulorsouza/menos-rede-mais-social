@@ -127,10 +127,9 @@ cargo run -p verificador -- registro registro.json entradas.json --anterior regi
 ## Próximos passos
 
 - Atestação de hardware no motor (AMD SEV-SNP ou Intel TDX), para provar qual binário está rodando agora.
-- Cerimônia distribuída dos guardiões do CPF, e a chave do registro num cofre de hardware.
+- A chave do registro num cofre de hardware. (A cerimônia distribuída dos guardiões do CPF já existe: `cofre dkg`, em `services/cofre`.)
 - Escala: vizinhos pré-calculados, tabelas particionadas e réplicas de leitura.
 - Servidores gRPC em Rust a partir dos contratos em `proto/`.
-- Fixar as actions do CI por hash de commit.
 
 ## Contribuindo
 

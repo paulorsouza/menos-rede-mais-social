@@ -89,7 +89,7 @@ A regra é 3 de 5, e não todos, porque a rede não pode ficar impedida de cumpr
 
 Os registros de acesso (IP, data e hora) ficam guardados pelos seis meses que o Marco Civil exige. A data fica aberta, porque é ela que diz quando o registro precisa sumir; o IP fica selado do mesmo jeito que o CPF e só sai na mesma ordem judicial.
 
-Como funciona hoje: o esquema é ElGamal com limiar sobre Ristretto255, no crate `services/cofre`. Cada guardião entrega só a parte daquele CPF, com uma prova de que usou a própria fatia, e três partes abrem aquele CPF e nenhum outro. As chaves públicas dos guardiões ficam em `params/guardioes.toml`, com o hash na página de transparência. Limite assumido na Fase 1: a cerimônia gera a chave num computador desligado da rede e a apaga em seguida. Antes do piloto ela passa a ser distribuída (DKG), para a chave inteira não existir nem por um instante.
+Como funciona hoje: o esquema é ElGamal com limiar sobre Ristretto255 (TDH2), no crate `services/cofre`. O selado leva uma prova, amarrada à conta, de que foi feito por quem selou. Antes de calcular a parte, cada guardião confere essa prova com a conta que está no pedido; assim a rede não consegue disfarçar o CPF de uma conta como se fosse de outra. Cada guardião entrega só a parte daquele CPF, com uma prova de que usou a própria fatia, e três partes abrem aquele CPF e nenhum outro. Uma parte que não confere fica de fora e não impede as outras de abrir. O motor recusa um `guardioes.toml` cujas chaves de conferência não saiam de um mesmo polinômio com a chave pública. As chaves públicas dos guardiões ficam em `params/guardioes.toml`, com o hash na página de transparência. A cerimônia do piloto é distribuída (DKG de Pedersen, `cofre dkg`): cada guardião sorteia a própria parte no próprio computador, as subfatias trocadas vão cifradas e são conferidas contra compromissos públicos, e a chave inteira não existe em lugar nenhum. Qualquer pessoa refaz `guardioes.toml` a partir dos arquivos públicos da cerimônia. A demonstração ainda usa a cerimônia da Fase 1, que gera a chave num computador só e a apaga em seguida.
 
 ## 4. Algoritmos de feed
 
@@ -314,11 +314,11 @@ Feito:
 - Licença AGPL-3.0 no repositório.
 - Repositório organizado, com README, guia de contribuição, política de segurança e modelo de RFC.
 - CI rodando os testes do motor, do backend e do front, mais a varredura de segredos em cada envio.
+- Ações da CI fixadas por hash de commit, como pede a seção 8.
 
 Falta:
 
 - Primeiros contribuidores de fora e o conselho provisório.
-- Fixar as ações da CI por hash de commit, como pede a seção 8.
 
 ### Fase 1 · Protótipo
 
@@ -436,6 +436,13 @@ Portão: piloto público rodando, com orçamento definido e primeiro relatório 
 
 Esta fase não depende só do repositório. Ela começa se uma instituição, de preferência pública, decidir levar a ideia adiante, com este código ou com outro. Até lá, o papel do projeto é deixar o exemplo o mais completo e fácil de entender possível.
 
+Feito no repositório:
+
+- Cofre do CPF preso à conta da ordem (TDH2): o guardião confere, antes de calcular a parte, que o selado foi feito para a conta que está no pedido. Uma parte com defeito não impede as outras de abrir, e o motor recusa um `guardioes.toml` incoerente.
+- Cerimônia distribuída dos guardiões (`cofre dkg`), em três passos no computador de cada guardião, com a reclamação apontando quem mandou uma subfatia errada.
+- Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX.
+- Relatório de transparência trimestral, publicado sozinho no primeiro dia de cada trimestre: denúncias e remoções por regra, recursos, ordens judiciais recebidas e cumpridas (as em segredo de justiça só na contagem), campanhas recusadas por regra e as contas dos meses. O SHA-256 do arquivo vai para o registro público, e qualquer pessoa confere o que baixou.
+
 Falta:
 
 - Um investidor que aceite as regras pétreas e uma entidade para operar a rede.
@@ -443,8 +450,9 @@ Falta:
 - Conselho e os cinco guardiões.
 - Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
 - Encarregado de dados e relatório de impacto à proteção de dados.
-- Auditoria externa, recompensa por falhas e lista pública de dependências.
-- Orçamento e o primeiro relatório de transparência.
+- Auditoria externa e recompensa por falhas. A lista de dependências já sai da CI; falta publicá-la junto de cada versão em produção.
+- Orçamento e o primeiro relatório de transparência com gente de verdade.
+- Pedidos de remoção vindos de autoridades ainda não têm cadastro próprio, então não entram no relatório.
 
 ## 12. Riscos
 
@@ -487,11 +495,11 @@ Já decidido:
 - [x] Só conta para pagamento a view de conta verificada pelo gov.br, com limites por pessoa
 - [x] Chave PIX no CPF do criador, conferida pela impressão digital; CPF como chave não vale
 - [x] Saldo abaixo de R$ 1,00 espera o mês seguinte
+- [x] Cerimônia dos guardiões do piloto: distribuída (DKG), sem a chave inteira em lugar nenhum
 
 Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
 
 - [ ] De onde vem a idade. O Login Único não informa a data de nascimento: precisa de convênio com outra base do governo ou de outro mecanismo que o ECA Digital aceite
-- [ ] Cerimônia distribuída (DKG) dos guardiões, antes do piloto
 
 - [ ] Como ler a regra pétrea 3, que fala em usar "o conteúdo do vídeo" nos anúncios, numa rede sem categorias. Hoje os anúncios usam só a região
 - [ ] Modo padrão do feed para quem acabou de chegar (a demo usa meio a meio)

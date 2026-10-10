@@ -75,6 +75,7 @@ export function TransparencyPage() {
 
       <RegistroSection />
       <OpenAccounts report={report} />
+      <QuarterlyReports report={report} />
       <VideoCostSection costs={report.video.costs} />
       <ParamsCard file={report.video.params} title="Vídeo" />
       <Rules report={report} />
@@ -116,6 +117,7 @@ const KIND_LABEL: Record<string, string> = {
   'raiz-dados': 'Retrato do grafo',
   identificacao: 'Ordem judicial aberta',
   fechamento: 'Fechamento do mês',
+  relatorio: 'Relatório trimestral',
 }
 
 /** Uma linha curta para cada entrada, a partir do texto exato publicado. */
@@ -127,6 +129,7 @@ function describe(kind: string, data: string) {
     if (kind === 'identificacao') return payload.sigiloso ? 'Processo sigiloso' : payload.juizo
     if (kind === 'fechamento')
       return `${monthName(`${payload.mes}-01`)} · ${payload.linhas} linhas · raiz ${String(payload.raiz).slice(0, 8)}…`
+    if (kind === 'relatorio') return `${payload.trimestre} · ${String(payload.sha256).slice(0, 8)}…`
   } catch {
     // Entrada de um tipo novo: mostra só o tipo.
   }
@@ -220,6 +223,47 @@ function OpenAccounts({ report }: { report: TransparencyReport }) {
           ))}
         </tbody>
       </table>
+    </section>
+  )
+}
+
+/**
+ * Relatórios trimestrais: remoções por regra, recursos, denúncias, ordens
+ * judiciais, anúncios recusados e as contas dos meses do trimestre.
+ */
+function QuarterlyReports({ report }: { report: TransparencyReport }) {
+  if (report.quarterly_reports.length === 0) return null
+
+  return (
+    <section id="relatorios">
+      <div className="params-head">
+        <h2 className="section-label">Relatórios trimestrais</h2>
+        <InfoTip label="Como conferir um relatório">
+          No primeiro dia de cada trimestre, a rede publica o relatório do anterior e põe o SHA-256 do arquivo no
+          registro público. Baixe o arquivo e rode <code>sha256sum</code>: o resultado tem que ser o mesmo da entrada no
+          registro.
+        </InfoTip>
+      </div>
+      <ul className="ad-list">
+        {report.quarterly_reports.map((item) => (
+          <li key={item.quarter}>
+            <span className="ad-list-name">
+              {item.quarter}
+              <small>
+                <code className="hash-inline">{item.sha256.slice(0, 16)}…</code>
+                {item.registro_position !== null && <> · registro #{item.registro_position}</>}
+              </small>
+            </span>
+            <a
+              className="btn btn-sm"
+              href={`/api/transparency/relatorios/${item.quarter}`}
+              download={`transparencia-${item.quarter}.json`}
+            >
+              Baixar
+            </a>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

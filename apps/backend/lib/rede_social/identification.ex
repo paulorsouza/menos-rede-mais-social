@@ -164,7 +164,7 @@ defmodule RedeSocial.Identification do
     if Demo.enabled?() do
       partials =
         Map.new(items(order), fn item ->
-          {:ok, partial} = Vault.demo_partial(guardian, item.sealed)
+          {:ok, partial} = Vault.demo_partial(guardian, item.sealed, item.context)
           {item.key, partial}
         end)
 

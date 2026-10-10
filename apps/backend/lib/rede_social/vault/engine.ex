@@ -26,5 +26,6 @@ defmodule RedeSocial.Vault.Engine do
   end
 
   @impl true
-  def demo_partial(index, sealed), do: Engine.vault_demo_partial(index, Base.encode64(sealed))
+  def demo_partial(index, sealed, context),
+    do: Engine.vault_demo_partial(index, Base.encode64(sealed), context)
 end

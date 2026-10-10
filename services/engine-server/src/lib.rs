@@ -85,7 +85,8 @@ impl Engines {
 
             // Uma parte qualquer prova se a fatia é a publicada.
             let probe = cofre::seal(&self.guardians.public_key, b"teste", b"teste");
-            cofre::verify_partial(&self.guardians, &probe, &cofre::partial(&share, &probe))
+            cofre::partial(&share, &probe, b"teste")
+                .and_then(|partial| cofre::verify_partial(&self.guardians, &probe, &partial))
                 .map_err(|_| format!("{} não é a fatia publicada", path.display()))?;
             self.demo_shares.push(share);
         }
@@ -503,6 +504,8 @@ async fn vault_open(
 struct DemoPartialRequest {
     index: u8,
     sealed: String,
+    /// O contexto que está no pedido: o guardião confere o selado com ele.
+    context: String,
 }
 
 async fn vault_demo_partial(
@@ -518,9 +521,9 @@ async fn vault_demo_partial(
             "sem fatias de demonstração para este guardião".to_string(),
         ))?;
     let sealed = cofre::Sealed::from_base64(&request.sealed).map_err(bad_request)?;
-    Ok(Json(cofre::PartialWire::from(&cofre::partial(
-        share, &sealed,
-    ))))
+    let partial =
+        cofre::partial(share, &sealed, request.context.as_bytes()).map_err(bad_request)?;
+    Ok(Json(cofre::PartialWire::from(&partial)))
 }
 
 fn bad_request(error: cofre::Error) -> ApiError {
@@ -592,7 +595,7 @@ mod tests {
         for index in [1, 3, 5] {
             let (status, partial) = call_with_demo(
                 "/vault/demo-partial",
-                json!({ "index": index, "sealed": sealed }),
+                json!({ "index": index, "sealed": sealed, "context": "cpf:conta-1" }),
             )
             .await;
             assert_eq!(status, StatusCode::OK);
@@ -622,6 +625,14 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(opened["plaintext"], "52998224725");
+
+        // O guardião não calcula a parte com o contexto de outra conta.
+        let (status, _) = call_with_demo(
+            "/vault/demo-partial",
+            json!({ "index": 1, "sealed": sealed, "context": "cpf:conta-2" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -635,7 +646,7 @@ mod tests {
         let (status, _) = call(
             "POST",
             "/vault/demo-partial",
-            json!({ "index": 1, "sealed": sealed["sealed"] }),
+            json!({ "index": 1, "sealed": sealed["sealed"], "context": "y" }),
         )
         .await;
         assert_eq!(status, StatusCode::NOT_FOUND);
