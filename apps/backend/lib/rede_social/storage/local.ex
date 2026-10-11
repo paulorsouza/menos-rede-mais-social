@@ -33,6 +33,9 @@ defmodule RedeSocial.Storage.Local do
   end
 
   @impl true
+  def get(key), do: File.read(target(key))
+
+  @impl true
   def delete(key) do
     case File.rm(target(key)) do
       :ok -> :ok

@@ -46,6 +46,24 @@ defmodule RedeSocial.PaymentsTest do
       assert Payments.register_pix_key(account, CPF.format(other_cpf)) == {:error, :cpf_pix_key}
     end
 
+    test "quem recebe como empresa usa uma chave do CNPJ da empresa da conta" do
+      {account, _cpf} = account_with_cpf()
+      cnpj = RedeSocial.Accounts.CNPJ.generate_for_testing()
+      other = RedeSocial.Accounts.CNPJ.generate_for_testing()
+
+      # Sem empresa cadastrada, o CNPJ não é dela.
+      assert Payments.register_pix_key(account, cnpj) == {:error, :pix_key_not_yours}
+
+      {:ok, _company} =
+        RedeSocial.Ads.register_advertiser(account, %{"cnpj" => cnpj, "name" => "Estúdio"})
+
+      assert Payments.register_pix_key(account, other) == {:error, :pix_key_not_yours}
+      {:ok, key} = Payments.register_pix_key(account, RedeSocial.Accounts.CNPJ.format(cnpj))
+      assert key.kind == :cnpj
+      assert key.key == cnpj
+      assert key.hint == "CNPJ " <> RedeSocial.Accounts.CNPJ.format(cnpj)
+    end
+
     test "celular vira o formato do PIX" do
       assert Payments.normalize_key("(11) 98765-4321") == {:ok, :phone, "+5511987654321"}
       assert Payments.normalize_key("+55 11 98765-4321") == {:ok, :phone, "+5511987654321"}

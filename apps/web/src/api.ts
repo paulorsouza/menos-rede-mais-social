@@ -3,6 +3,7 @@ import type {
   AdRule,
   Advertiser,
   AppealItem,
+  CaptionCue,
   CampaignQuote,
   OwnCampaign,
   Statement,
@@ -135,6 +136,13 @@ export const api = {
       watched,
     }),
 
+  captions: (postId: number) => request<{ cues: CaptionCue[] }>(`/posts/${postId}/legenda`),
+  updateCaptions: (postId: number, texts: string[]) =>
+    request<{ cues: CaptionCue[]; captions_url: string }>(`/posts/${postId}/legenda`, {
+      method: 'PUT',
+      body: JSON.stringify({ texts }),
+    }),
+
   rules: () => request<{ rules: Rule[] }>('/moderation/rules'),
   report: (postId: number, rule: number) => post<{ ok: true }>(`/posts/${postId}/report`, { rule }),
   appeal: (postId: number, text: string) => post<{ ok: true }>(`/posts/${postId}/appeal`, { text }),
@@ -177,6 +185,8 @@ export const api = {
 
   dashboard: () => request<Dashboard>('/creator/dashboard'),
   setPixKey: (key: string) => post<{ pix_key: { kind: string; hint: string } }>('/creator/pix', { key }),
+  setCompany: (company: { cnpj: string; name: string }) =>
+    post<{ company: { name: string; cnpj: string } }>('/creator/empresa', company),
   statement: (month: string) => request<{ statement: Statement }>(`/creator/statements/${month}`),
 
   advertiser: () => request<{ advertiser: Advertiser | null; campaigns: OwnCampaign[] }>('/anunciante'),

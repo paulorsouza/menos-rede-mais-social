@@ -98,9 +98,10 @@ jobs:
       - run: sha256sum result*/bin/*
 
   assinatura:
-    # Na main, assina os binários com o Sigstore sem chave guardada: a
-    # identidade é a do próprio GitHub Actions, e a assinatura entra no
-    # Rekor, o log público do Sigstore. Qualquer pessoa confere com
+    # Na main, assina os binários e a lista de dependências com o Sigstore
+    # sem chave guardada: a identidade é a do próprio GitHub Actions, e a
+    # assinatura entra no Rekor, o log público do Sigstore. Qualquer pessoa
+    # confere com
     #   cosign verify-blob --bundle engine-server.sigstore.json \
     #     --certificate-identity-regexp 'github.com/.*/menos-rede-mais-social' \
     #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
@@ -115,15 +116,30 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
+      # A lista de dependências desta versão vai junto dos binários, assinada
+      # do mesmo jeito: quem baixa sabe de que pacotes cada binário saiu.
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dependencias.spdx.json
+          upload-artifact: false
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: dependencias.cdx.json
+          upload-artifact: false
       - run: |
           nix build .#engine-server .#verificador
           mkdir assinados
           cp result/bin/engine-server result-1/bin/verificador assinados/
+          cp dependencias.spdx.json dependencias.cdx.json assinados/
           cd assinados
-          for binario in engine-server verificador; do
-            cosign sign-blob --yes --bundle "$binario.sigstore.json" "$binario"
+          for arquivo in engine-server verificador dependencias.spdx.json dependencias.cdx.json; do
+            cosign sign-blob --yes --bundle "$arquivo.sigstore.json" "$arquivo"
           done
-          sha256sum engine-server verificador > SHA256SUMS
+          sha256sum engine-server verificador dependencias.spdx.json dependencias.cdx.json > SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: binarios-assinados

@@ -56,7 +56,8 @@ export function PixKeyCard({ dashboard, onSaved }: { dashboard: Dashboard; onSav
         <span className="hero-label">Recebimento</span>
         <InfoTip label="Por que não o CPF">
           O repasse vai para uma chave PIX no seu CPF: o banco diz de quem é a chave, e a rede confere pela impressão
-          digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF. Na demonstração, a sua chave é{' '}
+          digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF. Quem recebe como empresa
+          cadastra o CNPJ e usa uma chave dele, que pode ser o próprio CNPJ. Na demonstração, a sua chave é{' '}
           <code>{me?.nickname}@pix.demo</code>.
         </InfoTip>
       </div>
@@ -65,7 +66,7 @@ export function PixKeyCard({ dashboard, onSaved }: { dashboard: Dashboard; onSav
           <input
             value={key}
             onChange={(event) => setKey(event.target.value)}
-            placeholder="E-mail, celular ou chave aleatória"
+            placeholder={dashboard.company ? 'E-mail, celular, chave aleatória ou CNPJ' : 'E-mail, celular ou chave aleatória'}
             aria-label="Chave PIX"
             autoComplete="off"
           />
@@ -82,7 +83,56 @@ export function PixKeyCard({ dashboard, onSaved }: { dashboard: Dashboard; onSav
         </p>
       )}
       {error && <p className="field-error">{error}</p>}
+      <CompanyLine company={dashboard.company} onSaved={onSaved} />
     </section>
+  )
+}
+
+/** Receber como empresa: o CNPJ fica na conta, como o de quem anuncia. */
+function CompanyLine({ company, onSaved }: { company: Dashboard['company']; onSaved: () => void }) {
+  const { toast } = useApp()
+  const [open, setOpen] = useState(false)
+  const [cnpj, setCnpj] = useState('')
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  if (company) {
+    return (
+      <p className="faint">
+        Empresa: {company.name} · CNPJ {company.cnpj}
+      </p>
+    )
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="text-link" onClick={() => setOpen(true)}>
+        Receber como empresa
+      </button>
+    )
+  }
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      await api.setCompany({ cnpj, name })
+      toast('Empresa cadastrada. Agora a chave pode ser do CNPJ.', 'success')
+      onSaved()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Não foi possível cadastrar.', 'error')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form className="pix-form" onSubmit={save}>
+      <input value={cnpj} onChange={(event) => setCnpj(event.target.value)} placeholder="CNPJ" aria-label="CNPJ" required />
+      <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da empresa" aria-label="Nome da empresa" required />
+      <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+        Salvar
+      </button>
+    </form>
   )
 }
 

@@ -87,6 +87,8 @@ defmodule RedeSocialWeb.Router do
       post "/posts/:id/views", PostController, :view
       post "/posts/:id/report", PostController, :report
       post "/posts/:id/appeal", PostController, :appeal
+      get "/posts/:id/legenda", PostController, :captions
+      put "/posts/:id/legenda", PostController, :update_captions
       get "/me/notices", NoticeController, :index
       get "/me/export", PrivacyController, :export
       delete "/me", PrivacyController, :delete
@@ -96,6 +98,7 @@ defmodule RedeSocialWeb.Router do
       post "/ads/views", AdController, :view
       get "/creator/dashboard", CreatorController, :show
       post "/creator/pix", CreatorController, :pix
+      post "/creator/empresa", CreatorController, :company
       get "/creator/statements/:month", CreatorController, :statement
       get "/creator/statements/:month/file", CreatorController, :statement_file
       get "/anunciante", AdvertiserController, :show

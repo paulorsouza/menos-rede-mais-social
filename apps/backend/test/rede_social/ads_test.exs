@@ -8,13 +8,16 @@ defmodule RedeSocial.AdsTest do
   alias RedeSocial.Ads.{AdSlot, AdView, Impression}
   alias RedeSocial.Payments.BRCode
 
+  # O dia de Brasília, o mesmo que o código usa para datas de campanha.
+  defp today, do: elem(Ads.brasilia_day(DateTime.utc_now()), 0)
+
   describe "escolha da campanha" do
     test "o motor recebe as campanhas no ar com o que cada uma já entregou hoje" do
       test_pid = self()
       national = campaign_fixture(impressions_per_day: 1000)
       local = campaign_fixture(scope: :regional, region: "Campinas/SP", impressions_per_day: 50)
       _paused = campaign_fixture(status: :awaiting_payment)
-      _over = campaign_fixture(ends_on: Date.add(Date.utc_today(), -1))
+      _over = campaign_fixture(ends_on: Date.add(today(), -1))
 
       viewer = account_fixture(region: "Campinas/SP")
 
@@ -161,7 +164,7 @@ defmodule RedeSocial.AdsTest do
     test "campanha sem pagamento, fora das datas ou já entregue não conta" do
       posts = [short_fixture(account_fixture(govbr_level: :ouro))]
       viewer = account_fixture()
-      yesterday = Date.add(Date.utc_today(), -2)
+      yesterday = Date.add(today(), -2)
 
       for campaign <- [
             campaign_fixture(status: :awaiting_payment),
@@ -319,8 +322,8 @@ defmodule RedeSocial.AdsTest do
           "scope" => "regional",
           "region" => "Campinas/SP",
           "hours_per_day" => "2",
-          "starts_on" => Date.to_iso8601(Date.utc_today()),
-          "ends_on" => Date.to_iso8601(Date.add(Date.utc_today(), 9))
+          "starts_on" => Date.to_iso8601(today()),
+          "ends_on" => Date.to_iso8601(Date.add(today(), 9))
         },
         overrides
       )
@@ -396,7 +399,7 @@ defmodule RedeSocial.AdsTest do
 
   describe "encerramento" do
     test "a campanha que acabou devolve por PIX o que não foi entregue" do
-      yesterday = Date.add(Date.utc_today(), -1)
+      yesterday = Date.add(today(), -1)
 
       campaign =
         campaign_fixture(

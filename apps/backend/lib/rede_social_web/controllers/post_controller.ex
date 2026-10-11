@@ -2,6 +2,8 @@ defmodule RedeSocialWeb.PostController do
   use RedeSocialWeb, :controller
 
   alias RedeSocial.{Moderation, Social}
+  alias RedeSocial.Media.CaptionEdits
+  alias RedeSocial.Social.Post
   alias RedeSocialWeb.Present
 
   action_fallback RedeSocialWeb.FallbackController
@@ -53,6 +55,33 @@ defmodule RedeSocialWeb.PostController do
       watched_ms = parse_integer(params["watched_ms"])
       :ok = Social.record_view(conn.assigns.current_account, post, watched_ms)
       send_resp(conn, :no_content, "")
+    end
+  end
+
+  @doc "Os trechos da legenda, para quem publicou corrigir."
+  def captions(conn, %{"id" => id}) do
+    with %Post{} = post <- own_post(conn, id),
+         {:ok, cues} <- CaptionEdits.cues(post) do
+      json(conn, %{cues: cues})
+    end
+  end
+
+  def update_captions(conn, %{"id" => id, "texts" => texts}) do
+    with %Post{} = post <- own_post(conn, id),
+         {:ok, post} <- CaptionEdits.update(conn.assigns.current_account, post, texts),
+         {:ok, cues} <- CaptionEdits.cues(post) do
+      json(conn, %{cues: cues, captions_url: RedeSocial.Storage.url(post.captions_path)})
+    end
+  end
+
+  def update_captions(_conn, _params), do: {:error, :invalid_caption}
+
+  defp own_post(conn, id) do
+    author = conn.assigns.current_account
+
+    case find(conn, id) do
+      %Post{author_id: author_id} = post when author_id == author.id -> post
+      _ -> {:error, :not_found}
     end
   end
 

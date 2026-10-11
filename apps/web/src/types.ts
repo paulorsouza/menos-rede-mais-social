@@ -135,7 +135,9 @@ export interface Dashboard {
       creators: number
     }[]
   }
-  pix_key: { kind: 'email' | 'phone' | 'random'; hint: string } | null
+  pix_key: { kind: 'email' | 'phone' | 'random' | 'cnpj'; hint: string } | null
+  /** A empresa da conta, para receber com uma chave do CNPJ. */
+  company: { name: string; cnpj: string } | null
   statements: StatementSummary[]
 }
 
@@ -343,6 +345,12 @@ export interface AppealItem {
 }
 
 /** Uma ordem judicial de identificação, para o setor jurídico. */
+export interface CaptionCue {
+  start: string
+  end: string
+  text: string
+}
+
 export interface RemovalRequest {
   id: number
   post_id: number | null
