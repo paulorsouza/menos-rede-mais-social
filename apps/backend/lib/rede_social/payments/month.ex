@@ -13,6 +13,9 @@ defmodule RedeSocial.Payments.Month do
     field :revenue_cents, :integer
     field :creators_cents, :integer
     field :fund_cents, :integer
+    # O bônus dos criadores pequenos do mês (params/ads.toml, band_difference).
+    field :bonus_pool_cents, :integer, default: 0
+    field :bonus_eligible_views, :integer, default: 0
     field :closed_at, :utc_datetime
   end
 end

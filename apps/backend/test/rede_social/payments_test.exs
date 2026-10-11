@@ -211,6 +211,52 @@ defmodule RedeSocial.PaymentsTest do
       assert length(small.input["video_views"]) == 51
     end
 
+    test "o bônus dos criadores pequenos entra nas contas, no registro e no extrato", c do
+      EngineStub.stub(%{
+        "/ads/close-month" => fn %{"creators" => creators} ->
+          results =
+            for creator <- creators do
+              bonus = if creator["creator"] == c.small.id, do: 70, else: 0
+
+              %{
+                "creator" => creator["creator"],
+                "video_cents" => 100,
+                "shorts_cents" => 0,
+                "bonus_cents" => bonus,
+                "carry_in_cents" => 0,
+                "total_cents" => 100 + bonus,
+                "payable" => true,
+                "leaves" => ["total|#{creator["creator"]}|#{bonus}"]
+              }
+            end
+
+          %{
+            "results" => results,
+            "bonus" => %{"pool_cents" => 70, "eligible_views" => 50},
+            "params_sha256" => "abc123",
+            "params_version" => 3
+          }
+        end
+      })
+
+      {:ok, month, _payouts} = Payments.close_month(c.last_month)
+
+      assert month.bonus_pool_cents == 70
+      assert month.bonus_eligible_views == 50
+      assert month.creators_cents == 3 * 100 + 70
+
+      entry = Repo.get_by!(Entry, position: month.registro_position)
+      assert entry.data =~ ~s("bonus_centavos":70)
+      assert entry.data =~ ~s("bonus_views_elegiveis":50)
+
+      file =
+        c.small
+        |> Payments.statement(Calendar.strftime(c.last_month, "%Y-%m"))
+        |> Payments.statement_file()
+
+      assert file.fechamento.bonus == %{pool_cents: 70, eligible_views: 50}
+    end
+
     test "o saldo pequeno vai para o mês seguinte", c do
       {:ok, _month, _payouts} = Payments.close_month(c.last_month)
       {:ok, _month, payouts} = Payments.close_month(Date.utc_today())

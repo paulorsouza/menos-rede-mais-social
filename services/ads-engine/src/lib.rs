@@ -13,7 +13,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-pub use params::{Antifraud, Delivery, Params, ParamsError, Payout, PayoutBand, Pricing};
+pub use params::{
+    Antifraud, BandDifference, Delivery, Params, ParamsError, Payout, PayoutBand, Pricing,
+    ShortsSplit,
+};
 
 pub type UserId = u64;
 
@@ -88,17 +91,25 @@ pub struct ShortView {
 }
 
 /// Divide a receita de um anúncio de shorts entre os criadores dos shorts
-/// assistidos antes dele, proporcional ao tempo assistido de cada um.
+/// mostrados antes dele: em partes iguais por short, ou proporcional ao
+/// tempo assistido, conforme `params/ads.toml`.
 ///
 /// Quem desligou os anúncios fica de fora. Se ninguém tiver anúncio ligado, o
 /// mapa volta vazio e a receita fica com o fundo de infraestrutura.
-pub fn split_shorts_revenue(revenue_cents: u64, views: &[ShortView]) -> BTreeMap<UserId, u64> {
+pub fn split_shorts_revenue(
+    revenue_cents: u64,
+    views: &[ShortView],
+    split: ShortsSplit,
+) -> BTreeMap<UserId, u64> {
     let mut watched: BTreeMap<UserId, u64> = BTreeMap::new();
-    for view in views
-        .iter()
-        .filter(|view| view.monetized && view.watched_ms > 0)
-    {
-        *watched.entry(view.creator_id).or_default() += view.watched_ms;
+    for view in views.iter().filter(|view| view.monetized) {
+        let weight = match split {
+            ShortsSplit::PartesIguais => 1,
+            ShortsSplit::TempoAssistido => view.watched_ms,
+        };
+        if weight > 0 {
+            *watched.entry(view.creator_id).or_default() += weight;
+        }
     }
 
     let total: u128 = watched.values().map(|&ms| u128::from(ms)).sum();
@@ -202,14 +213,28 @@ mod tests {
             view(3, 60, false),
             view(1, 40, true),
         ];
-        let shares = split_shorts_revenue(1_000, &views);
+        let shares = split_shorts_revenue(1_000, &views, ShortsSplit::TempoAssistido);
         assert_eq!(shares, BTreeMap::from([(1, 700), (2, 300)]));
+    }
+
+    #[test]
+    fn equal_parts_ignore_watch_time() {
+        // Três shorts com anúncio ligado: o criador 1 tem dois, então leva
+        // duas partes, mesmo tendo assistido pouco.
+        let views = [
+            view(1, 1, true),
+            view(2, 90, true),
+            view(3, 60, false),
+            view(1, 0, true),
+        ];
+        let shares = split_shorts_revenue(900, &views, ShortsSplit::PartesIguais);
+        assert_eq!(shares, BTreeMap::from([(1, 600), (2, 300)]));
     }
 
     #[test]
     fn no_cent_is_lost_when_split_is_inexact() {
         let views = [view(3, 10, true), view(1, 10, true), view(2, 10, true)];
-        let shares = split_shorts_revenue(100, &views);
+        let shares = split_shorts_revenue(100, &views, ShortsSplit::TempoAssistido);
         assert_eq!(shares, BTreeMap::from([(1, 34), (2, 33), (3, 33)]));
         assert_eq!(shares.values().sum::<u64>(), 100);
     }
@@ -217,7 +242,9 @@ mod tests {
     #[test]
     fn revenue_stays_with_fund_when_nobody_monetizes() {
         let views = [view(1, 30, false), view(2, 30, false)];
-        assert!(split_shorts_revenue(1_000, &views).is_empty());
+        for split in [ShortsSplit::PartesIguais, ShortsSplit::TempoAssistido] {
+            assert!(split_shorts_revenue(1_000, &views, split).is_empty());
+        }
     }
 
     #[test]

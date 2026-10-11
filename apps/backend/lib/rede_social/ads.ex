@@ -96,6 +96,46 @@ defmodule RedeSocial.Ads do
   end
 
   @doc """
+  Encerra as campanhas cujo último dia já passou e devolve por PIX, a quem
+  pagou, o que não foi entregue: as exibições compradas que não saíram,
+  pelo preço de cada uma. Se o banco falhar, a campanha fica para a próxima
+  rodada; ela já não entrega mais, porque passou das datas.
+  """
+  def close_ended_campaigns(now \\ DateTime.utc_now()) do
+    {today, _start, _seconds} = brasilia_day(now)
+
+    Campaign
+    |> where([c], c.status == :active and c.ends_on < ^today)
+    |> Repo.all()
+    |> Enum.map(&close_campaign(&1, now))
+  end
+
+  defp close_campaign(%Campaign{} = campaign, now) do
+    delivered = delivered_total(campaign)
+    undelivered = max(bought(campaign) - delivered, 0)
+    refund = min(undelivered * campaign.cents_per_impression, campaign.paid_cents || 0)
+
+    refunded =
+      if refund > 0 and campaign.charge_txid do
+        Pix.refund(campaign.charge_txid, refund, "devolucao-campanha-#{campaign.id}")
+      else
+        {:ok, nil}
+      end
+
+    with {:ok, e2e} <- refunded do
+      campaign
+      |> Ecto.Changeset.change(
+        status: :ended,
+        delivered: delivered,
+        refunded_cents: if(e2e, do: refund, else: 0),
+        refund_e2e_id: e2e,
+        ended_at: DateTime.truncate(now, :second)
+      )
+      |> Repo.update()
+    end
+  end
+
+  @doc """
   Apaga as exibições que já passaram do prazo. As impressões e views que
   vieram delas ficam, sem o vínculo.
   """
@@ -249,7 +289,7 @@ defmodule RedeSocial.Ads do
 
   @doc """
   Registra que o anúncio dos shorts foi visto e divide a parte dos criadores
-  entre os shorts do bloco, pelo tempo assistido. Quem desligou anúncios, não
+  entre os shorts do bloco, em partes iguais por short (params/ads.toml). Quem desligou anúncios, não
   pode receber ou é quem está assistindo fica fora do rateio, e a parte dele
   fica com o fundo. Com conta básica, sem gov.br, a parte dos criadores toda
   fica com o fundo.

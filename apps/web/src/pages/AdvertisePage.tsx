@@ -16,6 +16,7 @@ const STATUS: Record<OwnCampaign['status'], string> = {
   awaiting_payment: 'Esperando o PIX',
   active: 'No ar',
   rejected: 'Recusada',
+  ended: 'Encerrada',
 }
 
 const iso = (date: Date) => date.toISOString().slice(0, 10)
@@ -331,6 +332,12 @@ function CampaignItem({ campaign, onPaid }: { campaign: OwnCampaign; onPaid: () 
         {campaign.status === 'rejected' && campaign.rejection_rule && (
           <p className="field-error">
             Recusada pela regra {campaign.rejection_rule.number}: {campaign.rejection_rule.title.toLowerCase()}.
+          </p>
+        )}
+        {campaign.status === 'ended' && campaign.delivered !== null && (
+          <p className="faint">
+            {formatNumber(campaign.delivered)} exibições entregues
+            {campaign.refunded_cents ? ` · ${formatMoney(campaign.refunded_cents)} devolvidos por PIX` : ''}
           </p>
         )}
         {campaign.status === 'awaiting_payment' && campaign.brcode && (

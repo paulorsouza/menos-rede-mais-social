@@ -387,6 +387,9 @@ struct Statement {
 struct Closing {
     raiz: String,
     folhas: u64,
+    /// O bônus dos criadores pequenos do mês, como foi publicado.
+    #[serde(default)]
+    bonus: ads_engine::closing::Bonus,
 }
 
 #[derive(Deserialize)]
@@ -415,7 +418,8 @@ fn payment(args: &[String]) -> Result<bool, String> {
     );
 
     // Refaz a conta com o código do motor e compara campo a campo.
-    let recomputed = ads_engine::closing::close(&statement.entrada, &params);
+    let bonus = statement.fechamento.bonus;
+    let recomputed = ads_engine::closing::close(&statement.entrada, &params, bonus);
     ok &= check(
         recomputed.statuses == statement.resultado.statuses,
         &format!(
@@ -441,6 +445,17 @@ fn payment(args: &[String]) -> Result<bool, String> {
             money(recomputed.shorts_cents)
         ),
     );
+    if bonus.pool_cents > 0 {
+        ok &= check(
+            recomputed.bonus_cents == statement.resultado.bonus_cents,
+            &format!(
+                "a sua parte do bônus dos criadores pequenos: {} de {} ({} views elegíveis no mês)",
+                money(recomputed.bonus_cents),
+                money(bonus.pool_cents),
+                bonus.eligible_views
+            ),
+        );
+    }
     ok &= check(
         recomputed == statement.resultado,
         &format!(
@@ -487,8 +502,11 @@ fn payment(args: &[String]) -> Result<bool, String> {
             published.of_kind("fechamento").any(|payload| {
                 payload["raiz"].as_str() == Some(statement.fechamento.raiz.as_str())
                     && payload["mes"].as_str() == Some(statement.mes.as_str())
+                    && payload["bonus_centavos"].as_u64().unwrap_or(0) == bonus.pool_cents
+                    && payload["bonus_views_elegiveis"].as_u64().unwrap_or(0)
+                        == bonus.eligible_views
             }),
-            "a raiz do fechamento está publicada no registro público",
+            "a raiz do fechamento e o bônus do mês estão publicados no registro público",
         );
     } else {
         println!("  (passe --registro entradas.json para conferir que a raiz foi publicada)");

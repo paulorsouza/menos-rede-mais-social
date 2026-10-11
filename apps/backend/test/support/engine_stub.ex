@@ -75,17 +75,18 @@ defmodule RedeSocial.EngineStub do
   end
 
   defp respond("/ads/split-shorts", %{"revenue_cents" => revenue, "views" => views}) do
+    # Partes iguais por short com anúncio ligado, como em params/ads.toml.
     pool = div(revenue * 55, 100)
     paid = Enum.filter(views, & &1["monetized"])
-    total = Enum.sum_by(paid, & &1["watched_ms"])
+    total = length(paid)
 
     cents =
       if total == 0,
         do: %{},
         else:
           paid
-          |> Enum.group_by(& &1["creator_id"], & &1["watched_ms"])
-          |> Map.new(fn {id, ms} -> {to_string(id), div(pool * Enum.sum(ms), total)} end)
+          |> Enum.frequencies_by(& &1["creator_id"])
+          |> Map.new(fn {id, parts} -> {to_string(id), div(pool * parts, total)} end)
 
     %{"cents_by_creator" => cents, "fund_cents" => revenue - Enum.sum(Map.values(cents))}
   end
@@ -137,6 +138,11 @@ defmodule RedeSocial.EngineStub do
         }
       end)
 
-    %{"results" => results, "params_sha256" => "abc123", "params_version" => 2}
+    %{
+      "results" => results,
+      "bonus" => %{"pool_cents" => 0, "eligible_views" => 0},
+      "params_sha256" => "abc123",
+      "params_version" => 3
+    }
   end
 end

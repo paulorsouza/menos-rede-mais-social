@@ -29,7 +29,7 @@ Toda decisão de produto, código ou negócio precisa respeitar estas seis regra
 
 1. **Pública e sem dono.** Quem paga a infraestrutura é um investidor que não busca lucro, de preferência do setor público, e talvez só ele. Quem investe esperando retorno acaba cobrando esse retorno em atenção e dados, que é o que a rede quer evitar. E quem paga não controla conteúdo nem algoritmo.
 2. **Sem fins lucrativos.** A receita paga criadores e infraestrutura. Não existe lucro a distribuir.
-3. **Dados não são produto.** Nenhum dado pessoal é vendido ou compartilhado com anunciantes. A segmentação de anúncios usa só a região aproximada e o contexto do vídeo.
+3. **Dados não são produto.** Nenhum dado pessoal é vendido ou compartilhado com anunciantes. A segmentação de anúncios usa só a região aproximada. Numa rede sem categorias, o "conteúdo do vídeo" da regra pétrea 3 fica sem uso: a rede não classifica posts.
 4. **Transparência verificável.** O código é aberto, e qualquer pessoa consegue provar que o código em produção é o publicado.
 5. **Escolha do usuário.** O usuário escolhe o modo do feed e entende por que cada post apareceu.
 6. **Segurança pelo desenho.** A segurança não depende de código secreto, só de chaves e dados protegidos.
@@ -44,7 +44,7 @@ A rede tem três módulos sob um perfil único. Só o módulo de vídeo tem anú
 | Texto curto | Frases rápidas de até 140 caracteres | Curtir; sem respostas; repostar em aberto | Não |
 | Vídeos | Vídeos gravados de qualquer duração | Curtir, comentar, salvar | Nos pontos que o criador marcar |
 | Shorts | Vídeos verticais curtos em sequência | Curtir, comentar, salvar | 1 anúncio a cada 6 shorts |
-| Lives | Transmissão ao vivo pelo navegador ou pelo OBS; a gravação vira vídeo | Curtir; chat ao vivo (proposta) | Não, por enquanto |
+| Lives | Transmissão ao vivo pelo navegador ou pelo OBS; a gravação vira vídeo | Curtir; chat ao vivo (proposta) | Não |
 
 Requisitos que valem para todos os módulos:
 
@@ -138,7 +138,7 @@ Regras que valem para todos os modos:
 
 - **Parâmetros abertos.** Pesos e janelas de tempo ficam num arquivo público e versionado. Mudar um peso é uma mudança de código como qualquer outra.
 - **Sem impulsionamento pago.** Não dá para pagar para aparecer mais no feed. Contas de governo, partidos e políticos seguem as mesmas regras de todos.
-- **Modo padrão** para quem acabou de chegar: a decidir (proposta: meio a meio).
+- **Modo padrão** para quem acabou de chegar: meio a meio. Quem chega ainda não tem grafo, e a metade fora da bolha evita um feed vazio.
 
 ## 5. Moderação
 
@@ -161,8 +161,8 @@ Só vídeos e shorts têm anúncio. O criador decide se quer anúncio, e toda a 
 ### Onde os anúncios aparecem
 
 - **Vídeos:** o criador marca os pontos de anúncio (início, meio ou fim). Sem marcação, não tem anúncio nem receita.
-- **Shorts:** um anúncio a cada 6 shorts assistidos. A receita é dividida entre os criadores desses 6 shorts, proporcional ao tempo assistido de cada um (proposta). Quem desligou anúncios não entra no rateio.
-- **Lives:** a definir.
+- **Shorts:** um anúncio a cada 6 shorts assistidos. A parte dos criadores é dividida em partes iguais entre os 6 shorts (`shorts_split` em `params/ads.toml`): não depende do tempo que o app informa. Quem desligou anúncios não entra no rateio.
+- **Lives:** sem anúncio.
 
 ### Anúncio nacional
 
@@ -178,17 +178,17 @@ Só vídeos e shorts têm anúncio. O criador decide se quer anúncio, e toda a 
 | De 1 milhão a 10 milhões | 50% |
 | Acima de 10 milhões | 30% |
 
-Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês, o criador recebe o equivalente a 1,275 milhão de views no valor base. Decisão em aberto: a diferença vai para o fundo de infraestrutura ou para um bônus de criadores pequenos.
+Exemplo: com 2 milhões de views no mês, o criador recebe o equivalente a 1,275 milhão de views no valor base. A diferença que as faixas deixam de pagar a quem cresceu vira bônus para os criadores pequenos: no fechamento, ela é dividida entre quem ficou na primeira faixa no mês, pelas views de cada um. O total do bônus e a soma das views elegíveis vão para o registro público, e cada criador confere a própria parte no verificador.
 
 ### Anúncio regional
 
-- Comprado por município ou estado. Custa menos por exibição e paga menos ao criador.
+- Comprado por município. Custa menos por exibição e paga menos ao criador.
 - Aparece só para quem assiste daquela região, de preferência nos vídeos de criadores grandes, onde há audiência local suficiente. É assim que a padaria do bairro alcança muita gente.
 - A região do espectador é aproximada (pela conexão ou pelo município informado). Localização precisa nunca é usada.
 
 ### Divisão e pagamento
 
-- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Nos valores ilustrativos de hoje, quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; a proporção final é decisão em aberto.
+- A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; o resto paga a infraestrutura. A proporção pode mudar por RFC quando houver custo real medido.
 - O fechamento é mensal, no dia 1º, com repasse por PIX. Abaixo de R$ 1,00 o saldo espera o mês seguinte, porque um PIX de centavos custa mais do que vale.
 - A chave PIX precisa estar no CPF do próprio criador. O banco diz de quem é a chave, e a rede confere pela impressão digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF.
 - Cada criador tem um extrato aberto: views com anúncio por vídeo, as que não contaram e por quê, a faixa aplicada e a parte de cada anúncio dos shorts. O cálculo pode ser verificado por qualquer pessoa (seção 9).
@@ -196,9 +196,10 @@ Os valores da tabela são ilustrativos. Exemplo: com 2 milhões de views no mês
 ### Regras para anunciantes
 
 - **Biblioteca pública de anúncios:** anunciante, região, período e valor pago de cada campanha.
-- **Proibido:** propaganda política ou eleitoral. Apostas e governo anunciando a própria gestão são decisões em aberto (proposta: proibir os dois e permitir só campanhas de utilidade pública).
+- **Proibido:** propaganda política ou eleitoral, apostas e jogos de azar, e governo anunciando a própria gestão. Órgão público só anuncia campanha de utilidade pública, como vacinação e defesa civil (regras de anúncio 1, 5 e 6).
+- **Devolução:** quando a campanha acaba, o que não foi entregue volta por PIX para quem pagou, pelo preço de cada exibição.
 - **Antifraude:** só conta view de conta verificada pelo gov.br. A mesma pessoa conta uma vez por vídeo por dia, e no máximo dez vezes por criador por dia. O que não conta aparece no extrato, com o motivo. Os limites estão em `params/ads.toml`.
-- **Só conta anúncio que a rede mostrou.** Cada anúncio servido vira uma exibição, com quem viu, a campanha e os posts junto dos quais ele apareceu. O app não escolhe campanha nem shorts. O anúncio dos shorts conta uma vez, e o tempo assistido somado não passa do tempo desde que a rede mostrou o bloco. Quem assiste ao próprio short não entra no rateio dele.
+- **Só conta anúncio que a rede mostrou.** Cada anúncio servido vira uma exibição, com quem viu, a campanha e os posts junto dos quais ele apareceu. O app não escolhe campanha nem shorts. O anúncio dos shorts conta uma vez, só com os shorts que a rede mostrou antes dele. Quem assiste ao próprio short não entra no rateio dele.
 - **A campanha entrega o que foi pago.** Fora das datas compradas, ou depois de entregar o total comprado, a campanha para de contar.
 - **Moderação de anúncios:** toda campanha passa por uma pessoa da moderação antes de ser cobrada. A recusa cita uma regra pública de anúncio, e quem anuncia não aprova a própria campanha.
 
@@ -396,7 +397,7 @@ Falta:
 - Medir com vídeos de verdade. Os da demo são gerados e simples, então ficam bem abaixo do teto.
 - CDN de verdade, com remoção imediata. Na demo, um arquivo apagado some da borda em até 5 minutos; numa CDN, a rede chama a API de remoção na hora.
 - Legendas melhores. O modelo padrão (small) erra palavras difíceis e às vezes inventa texto em áudio curto ou sem fala. Dá para usar um modelo maior e deixar quem publicou corrigir a legenda.
-- Chat e anúncios nas lives, que estão em aberto.
+- Chat nas lives, que está em aberto. Lives não têm anúncio.
 - Codecs mais eficientes (AV1) para gastar menos banda, quando os aparelhos simples tocarem.
 
 ### Fase 4 · Anúncios e pagamentos
@@ -409,7 +410,9 @@ Feito:
 - Toda campanha passa pela moderação antes de ser cobrada, com regras públicas de anúncio. Aprovada, recebe uma cobrança PIX (copia e cola, no padrão do Banco Central); paga, entra no ar nas datas compradas.
 - Entrega no ritmo do dia: o motor só deixa a campanha mostrar a parte do dia que já passou, pelo peso de cada hora, e não deixa um anúncio nacional gastar numa cidade mais do que a parte dela na audiência. Entre as que cabem, sai a mais atrasada.
 - O anúncio dentro do vídeo é registrado no ponto que o criador marcou. É ele que paga o criador, pelas faixas.
-- Anúncio dos shorts dividido pelo tempo assistido, com a parte do fundo separada na hora.
+- Anúncio dos shorts dividido em partes iguais entre os shorts do bloco, com a parte do fundo separada na hora.
+- Bônus dos criadores pequenos: a diferença das faixas é dividida no fechamento entre quem ficou na primeira faixa, com o total e as views elegíveis no registro e a parte de cada um conferida pelo verificador.
+- Encerramento das campanhas: no dia seguinte ao fim, o que não foi entregue volta por PIX para quem pagou (devolução do PIX recebido).
 - Antifraude: só conta view de conta verificada, uma vez por vídeo por pessoa por dia e no máximo dez por criador por dia. Nos shorts, a parte dos criadores de um anúncio visto por conta básica fica com o fundo, e o extrato mostra isso.
 - Só conta anúncio que a rede mostrou: cada um vira uma exibição, que o app devolve ao avisar que o anúncio passou. A campanha só conta dentro das datas compradas e até o total comprado.
 - O mês dos pagamentos é o de Brasília, como o dia do antifraude.
@@ -424,11 +427,7 @@ Falta:
 - Um banco de verdade (PSP), com o diretório de chaves, a cobrança e o repasse. Na demo, um banco simulado faz esse papel.
 - O gov.br da empresa, para confirmar que quem anuncia responde pelo CNPJ. Na demo, basta um CNPJ válido.
 - Chave PIX em CNPJ para criador que recebe como empresa.
-- Devolver ao anunciante o que a campanha não chegou a entregar.
-- O tempo assistido dos shorts ainda vem do app. O servidor limita ao tempo desde a exibição, mas não confere se o vídeo tocou de fato.
 - Auditoria externa de segurança e de pagamentos, e revisão jurídica: são o portão.
-- Anúncio em lives.
-- As decisões de faixas, proporções e destino da diferença (seção 13).
 
 ### Fase 5 · Piloto
 
@@ -496,22 +495,22 @@ Já decidido:
 - [x] Chave PIX no CPF do criador, conferida pela impressão digital; CPF como chave não vale
 - [x] Saldo abaixo de R$ 1,00 espera o mês seguinte
 - [x] Cerimônia dos guardiões do piloto: distribuída (DKG), sem a chave inteira em lugar nenhum
+- [x] Modo padrão do feed para quem chega: meio a meio
+- [x] Pesos do grafo: janela de 90 dias, 10 segundos de vídeo, 2 posts em comum e 10% de sobreposição para virar vizinho; ajustes com uso real, por RFC
+- [x] Rateio dos shorts em partes iguais por short do bloco, sem depender do tempo que o app informa
+- [x] Lives sem anúncio
+- [x] Apostas e publicidade de governo não anunciam; órgão público só com campanha de utilidade pública
+- [x] Devolução ao anunciante, por PIX, do que a campanha não entregou
+- [x] Faixas do pagamento decrescente: 100% até 100 mil views, 75% até 1 milhão, 50% até 10 milhões e 30% acima
+- [x] A diferença das faixas vira bônus para os criadores que ficaram na primeira faixa no mês
+- [x] 55% da receita de cada anúncio para o criador e 45% para o fundo, até haver custo real medido
+- [x] Anúncio regional por município
+- [x] Regra pétrea 3: anúncio usa só a região aproximada; "o conteúdo do vídeo" fica sem uso, porque a rede não classifica posts
 
 Em aberto. Só a primeira trava o grupo de teste da Fase 1; as outras podem esperar até a fase em que entram.
 
 - [ ] De onde vem a idade. O Login Único não informa a data de nascimento: precisa de convênio com outra base do governo ou de outro mecanismo que o ECA Digital aceite
 
-- [ ] Como ler a regra pétrea 3, que fala em usar "o conteúdo do vídeo" nos anúncios, numa rede sem categorias. Hoje os anúncios usam só a região
-- [ ] Modo padrão do feed para quem acabou de chegar (a demo usa meio a meio)
-- [ ] Pesos do grafo: janela de 90 dias, 10 segundos de vídeo, 2 posts em comum e 10% de sobreposição para virar vizinho são o ponto de partida
-- [ ] Rateio dos shorts por tempo assistido (como está na demo) ou em partes iguais
-- [ ] Anúncios em lives (hoje, sem anúncio)
 - [ ] Orçamento por hora de vídeo, que fecha o portão da Fase 3
-- [ ] Faixas e percentuais do pagamento decrescente
-- [ ] Destino da diferença das faixas: fundo de infraestrutura ou bônus para criadores pequenos
-- [ ] Proporção da receita entre criador e fundo de infraestrutura (hoje, 55% ilustrativo)
-- [ ] Devolução ao anunciante do que a campanha não entregou
-- [ ] Anúncio regional por município ou por estado
-- [ ] Apostas e publicidade de governo como anunciantes
 - [ ] Forma jurídica da entidade gestora
 - [ ] Quem são os 5 guardiões da cópia cifrada do CPF

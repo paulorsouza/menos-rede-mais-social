@@ -64,7 +64,7 @@ Por enquanto o motor conversa com o backend em JSON, com os mesmos campos dos co
 - **Posts** de texto curto (140 caracteres, sem respostas), foto, vídeo e short, com curtidas, salvamentos e seguidores. É um campo só: o tipo sai do arquivo anexado (vídeo em pé vira short), e não tem tag para escolher.
 - **Vídeo de verdade**: o arquivo sobe enquanto você escreve a legenda e retoma de onde parou se a conexão cair. O vídeo vira HLS com várias qualidades, ganha capa e legenda automática, e o player troca de qualidade conforme a internet. O modo "Economizar dados" segura tudo em 360.
 - **Lives** pelo navegador ou pelo OBS. Quando acabam, a gravação vira vídeo comum.
-- **Shorts** com um anúncio a cada 6. A parte dos criadores é dividida entre os do bloco, pelo tempo assistido, e a tela mostra o rateio na hora.
+- **Shorts** com um anúncio a cada 6. A parte dos criadores é dividida em partes iguais entre os shorts do bloco, e a tela mostra o rateio na hora.
 - **Vídeos** com anúncio só nos pontos que o criador escolheu. Quem é bronze não monetiza.
 - **Anunciar**: a empresa monta a campanha (no país todo ou numa cidade) com o preço da tabela pública, a moderação aprova, a cobrança vai por PIX e o motor espalha as exibições ao longo do dia.
 - **Pagamento dos criadores**: o mês fecha no dia 1º pelo motor aberto, com regras contra fraude, faixas decrescentes como no imposto de renda e repasse por PIX. Cada criador baixa o extrato e confere a conta no verificador.

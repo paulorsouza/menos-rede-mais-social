@@ -50,6 +50,9 @@ config :rede_social, Oban,
        {"@hourly", RedeSocial.Uploads.PurgeWorker},
        # De madrugada, apaga as exibições de anúncio que já não contam.
        {"0 7 * * *", RedeSocial.Ads.SlotPurgeWorker},
+       # Às 4h (UTC), 1h de Brasília, encerra as campanhas de ontem e devolve
+       # o que não foi entregue.
+       {"0 4 * * *", RedeSocial.Ads.CloseCampaignsWorker},
        # Dia 1, às 6h (UTC), fecha o mês anterior e manda os repasses.
        {"0 6 1 * *", RedeSocial.Payments.CloseMonthWorker},
        # No dia 1 de cada trimestre, às 7h (UTC), publica o relatório do anterior.

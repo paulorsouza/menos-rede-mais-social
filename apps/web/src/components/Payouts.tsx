@@ -164,6 +164,12 @@ function StatementDetail({ statement }: { statement: Statement }) {
             <td>Shorts ({statement.shorts.length} anúncios)</td>
             <td>{formatMoney(statement.shorts_cents)}</td>
           </tr>
+          {statement.bonus_cents > 0 && (
+            <tr>
+              <td>Bônus dos criadores pequenos</td>
+              <td>{formatMoney(statement.bonus_cents)}</td>
+            </tr>
+          )}
           {statement.carry_in_cents > 0 && (
             <tr>
               <td>Saldo do mês anterior</td>

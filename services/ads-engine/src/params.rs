@@ -24,8 +24,33 @@ pub struct Payout {
     pub regional_view_percent: u32,
     /// Parte da receita de cada anúncio dos shorts que vai para os criadores.
     pub creator_share_percent: u32,
+    /// Como essa parte se divide entre os shorts do bloco.
+    pub shorts_split: ShortsSplit,
+    /// Para onde vai o que as faixas deixam de pagar a quem cresceu.
+    pub band_difference: BandDifference,
     /// Abaixo disso, o repasse fica para o mês seguinte.
     pub minimum_payout_cents: u64,
+}
+
+/// Como a parte dos criadores de um anúncio de shorts se divide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ShortsSplit {
+    /// Cada short do bloco com anúncio ligado vale uma parte igual. Não
+    /// depende do tempo que o app diz que a pessoa assistiu.
+    PartesIguais,
+    /// Proporcional ao tempo assistido de cada short.
+    TempoAssistido,
+}
+
+/// O destino da diferença das faixas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BandDifference {
+    /// Bônus para os criadores que ficaram na primeira faixa no mês.
+    BonusPequenos,
+    /// Fica com o fundo de infraestrutura.
+    Fundo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

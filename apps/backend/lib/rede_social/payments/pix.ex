@@ -16,12 +16,20 @@ defmodule RedeSocial.Payments.Pix do
   @callback transfer(key :: String.t(), cents :: pos_integer(), idempotency_id :: String.t()) ::
               {:ok, e2e_id :: String.t()} | {:error, term()}
 
+  @doc """
+  Devolve parte de uma cobrança recebida para quem pagou (a devolução do
+  PIX). O id evita devolver duas vezes.
+  """
+  @callback refund(txid :: String.t(), cents :: pos_integer(), idempotency_id :: String.t()) ::
+              {:ok, e2e_id :: String.t()} | {:error, term()}
+
   @doc "Cria uma cobrança e devolve o código copia e cola."
   @callback create_charge(cents :: pos_integer(), txid :: String.t(), description :: String.t()) ::
               {:ok, brcode :: String.t()} | {:error, term()}
 
   def lookup_key(key), do: adapter().lookup_key(key)
   def transfer(key, cents, id), do: adapter().transfer(key, cents, id)
+  def refund(txid, cents, id), do: adapter().refund(txid, cents, id)
 
   def create_charge(cents, txid, description),
     do: adapter().create_charge(cents, txid, description)

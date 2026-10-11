@@ -315,7 +315,8 @@ async fn split_shorts(
     Json(request): Json<SplitRequest>,
 ) -> Json<SplitResponse> {
     let pool = ads_engine::closing::shorts_creator_pool(request.revenue_cents, &engines.ads);
-    let cents_by_creator = ads_engine::split_shorts_revenue(pool, &request.views);
+    let cents_by_creator =
+        ads_engine::split_shorts_revenue(pool, &request.views, engines.ads.payout.shorts_split);
     let paid: u64 = cents_by_creator.values().sum();
 
     Json(SplitResponse {
@@ -388,23 +389,24 @@ struct CloseMonthRequest {
 #[derive(Serialize)]
 struct CloseMonthResponse {
     results: Vec<ads_engine::closing::CreatorResult>,
+    /// O bônus dos criadores pequenos do mês, para publicar no registro.
+    bonus: ads_engine::closing::Bonus,
     params_version: u32,
     params_sha256: String,
     engine_version: &'static str,
     engine_build: &'static str,
 }
 
-/// Fecha o mês: a conta de cada criador, feita só com os dados dele.
+/// Fecha o mês: a conta de cada criador, feita só com os dados dele, mais a
+/// parte do bônus dos criadores pequenos.
 async fn close_month(
     State(engines): Shared,
     Json(request): Json<CloseMonthRequest>,
 ) -> Json<CloseMonthResponse> {
+    let (results, bonus) = ads_engine::closing::close_all(&request.creators, &engines.ads);
     Json(CloseMonthResponse {
-        results: request
-            .creators
-            .iter()
-            .map(|month| ads_engine::closing::close(month, &engines.ads))
-            .collect(),
+        results,
+        bonus,
         params_version: engines.ads.version,
         params_sha256: engines.ads_file.sha256.clone(),
         engine_version: ENGINE_VERSION,
@@ -748,7 +750,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn split_shorts_follows_watch_time() {
+    async fn split_shorts_gives_equal_parts() {
         let (status, body) = call(
             "POST",
             "/ads/split-shorts",
@@ -762,9 +764,10 @@ mod tests {
         )
         .await;
 
-        // 55% para os criadores (params/ads.toml), pelo tempo assistido.
+        // 55% para os criadores (params/ads.toml), em partes iguais por
+        // short, seja qual for o tempo assistido.
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["cents_by_creator"], json!({ "1": 385, "2": 165 }));
+        assert_eq!(body["cents_by_creator"], json!({ "1": 275, "2": 275 }));
         assert_eq!(body["fund_cents"], 450);
     }
 
@@ -788,7 +791,7 @@ mod tests {
         let result = &body["results"][0];
         assert_eq!(result["statuses"], json!(["counted", "repeated_same_day"]));
         assert_eq!(result["leaves"].as_array().unwrap().len(), 3);
-        assert_eq!(body["params_version"], 2);
+        assert_eq!(body["params_version"], 3);
     }
 
     #[tokio::test]

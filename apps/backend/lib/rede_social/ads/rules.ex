@@ -9,7 +9,7 @@ defmodule RedeSocial.Ads.Rules do
       number: 1,
       title: "Propaganda política ou eleitoral",
       text:
-        "Partido, candidato, governo ou causa eleitoral não anunciam, nem fora de eleição (regra pétrea 10)."
+        "Partido, candidato ou causa eleitoral não anunciam, nem fora de eleição (regra pétrea 10)."
     },
     %{
       number: 2,
@@ -25,6 +25,17 @@ defmodule RedeSocial.Ads.Rules do
       number: 4,
       title: "Quebra as regras de conteúdo",
       text: "O anúncio segue as mesmas regras de qualquer post."
+    },
+    %{
+      number: 5,
+      title: "Apostas",
+      text: "Casa de apostas, bet, cassino e jogo de azar não anunciam."
+    },
+    %{
+      number: 6,
+      title: "Publicidade de governo",
+      text:
+        "Órgão público não anuncia a própria gestão, obra ou realização. Só vale campanha de utilidade pública, como vacinação, defesa civil e prazos de documentos."
     }
   ]
 
