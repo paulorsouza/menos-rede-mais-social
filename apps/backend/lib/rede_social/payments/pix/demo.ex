@@ -14,8 +14,15 @@ defmodule RedeSocial.Payments.Pix.Demo do
   @impl true
   def lookup_key(key) do
     case Repo.get(DemoDirectory, key) do
-      %DemoDirectory{document: document, name: name} -> {:ok, %{document: document, name: name}}
-      nil -> {:error, :not_found}
+      %DemoDirectory{document: document, name: name} ->
+        {:ok, %{document: document, name: name}}
+
+      # Chave do tipo CNPJ é sempre do próprio CNPJ.
+      nil ->
+        case RedeSocial.Accounts.CNPJ.normalize(key) do
+          {:ok, cnpj} when cnpj == key -> {:ok, %{document: cnpj, name: "Empresa"}}
+          _ -> {:error, :not_found}
+        end
     end
   end
 

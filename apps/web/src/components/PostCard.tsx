@@ -8,6 +8,7 @@ import { loadRules } from '../rules'
 import type { Author, Post, Reason, Rule } from '../types'
 import { Avatar, Verified } from './Avatar'
 import { Popover } from './Popover'
+import { CaptionEditor } from './CaptionEditor'
 import { VideoView } from './VideoView'
 
 export function usePostActions(initial: Post) {
@@ -43,7 +44,7 @@ export function usePostActions(initial: Post) {
     return () => clearInterval(timer)
   }, [post.id, post.media_status])
 
-  return { post, like, save }
+  return { post, setPost, like, save }
 }
 
 /** Vídeo ou short dentro de um card: a capa, e o vídeo só quando a pessoa dá play. */
@@ -207,7 +208,8 @@ export function PostInfo({ post, showReasons }: { post: Post; showReasons: boole
 }
 
 export function PostCard({ post: initial, showReasons = true }: { post: Post; showReasons?: boolean }) {
-  const { post, like, save } = usePostActions(initial)
+  const { post, setPost, like, save } = usePostActions(initial)
+  const { me } = useApp()
 
   return (
     <article className={`post post-${post.kind}`}>
@@ -232,6 +234,9 @@ export function PostCard({ post: initial, showReasons = true }: { post: Post; sh
         )}
         {(post.kind === 'video' || post.kind === 'short' || post.kind === 'live') && (
           <PostVideo post={post} className="post-media" />
+        )}
+        {me?.id === post.author.id && post.captions_url && (
+          <CaptionEditor postId={post.id} onSaved={(captionsUrl) => setPost((p) => ({ ...p, captions_url: captionsUrl }))} />
         )}
 
         <footer className="post-actions">

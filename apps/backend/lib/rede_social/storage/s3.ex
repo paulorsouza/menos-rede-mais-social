@@ -49,6 +49,16 @@ defmodule RedeSocial.Storage.S3 do
   end
 
   @impl true
+  def get(key) do
+    case Req.get(request(), url: object_url(key), decode_body: false) do
+      {:ok, %{status: 200, body: body}} -> {:ok, body}
+      {:ok, %{status: 404}} -> {:error, :not_found}
+      {:ok, response} -> {:error, {:s3, response.status, response.body}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl true
   def delete(key) do
     case Req.delete(request(), url: object_url(key)) do
       {:ok, %{status: status}} when status in [200, 204, 404] -> :ok

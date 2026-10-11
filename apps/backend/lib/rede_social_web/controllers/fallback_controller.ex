@@ -31,7 +31,11 @@ defmodule RedeSocialWeb.FallbackController do
   end
 
   def call(conn, {:error, :pix_key_not_yours}) do
-    error(conn, :unprocessable_entity, "Essa chave PIX não está no seu CPF. Use uma chave sua.")
+    error(
+      conn,
+      :unprocessable_entity,
+      "Essa chave PIX não está no seu CPF nem no CNPJ da sua empresa. Use uma chave sua."
+    )
   end
 
   def call(conn, {:error, :pix_key_not_found}) do
@@ -50,7 +54,7 @@ defmodule RedeSocialWeb.FallbackController do
     error(
       conn,
       :unprocessable_entity,
-      "Chave PIX inválida: use e-mail, celular ou chave aleatória."
+      "Chave PIX inválida: use e-mail, celular, chave aleatória ou o CNPJ da sua empresa."
     )
   end
 
@@ -136,6 +140,18 @@ defmodule RedeSocialWeb.FallbackController do
 
   def call(conn, {:error, :no_shorts}) do
     error(conn, :unprocessable_entity, "O anúncio precisa dos shorts que vieram antes dele.")
+  end
+
+  def call(conn, {:error, :no_captions}) do
+    error(conn, :not_found, "Este vídeo não tem legenda automática.")
+  end
+
+  def call(conn, {:error, reason}) when reason in [:cues_mismatch, :invalid_caption] do
+    error(conn, :unprocessable_entity, "A legenda mudou. Abra de novo para corrigir.")
+  end
+
+  def call(conn, {:error, :caption_too_long}) do
+    error(conn, :unprocessable_entity, "Cada trecho da legenda tem no máximo 300 caracteres.")
   end
 
   def call(conn, {:error, :already_counted}) do

@@ -476,6 +476,7 @@ defmodule RedeSocial.Ads do
          current_band: current_band(bands, views),
          shorts: shorts_earnings(account, month),
          pix_key: key && %{kind: key.kind, hint: key.hint},
+         company: company(account),
          statements:
            Enum.map(Payments.statements(account), fn %{payout: payout, month: closed} ->
              %{
@@ -537,10 +538,17 @@ defmodule RedeSocial.Ads do
 
   def advertiser(%Account{id: id}), do: Repo.get_by(Advertiser, account_id: id)
 
+  defp company(account) do
+    case advertiser(account) do
+      nil -> nil
+      company -> %{name: company.name, cnpj: CNPJ.format(company.cnpj)}
+    end
+  end
+
   @doc """
-  Cadastra a empresa da conta como anunciante. Em produção, o gov.br da
-  empresa confirma que a pessoa responde pelo CNPJ; na demonstração, basta um
-  CNPJ válido.
+  Cadastra a empresa da conta: para anunciar ou para o criador receber como
+  empresa. Em produção, o gov.br da empresa confirma que a pessoa responde
+  pelo CNPJ; na demonstração, basta um CNPJ válido.
   """
   def register_advertiser(%Account{} = account, attrs) do
     name = attrs |> Map.get("name", "") |> to_string() |> String.trim()
@@ -618,7 +626,8 @@ defmodule RedeSocial.Ads do
     end
 
     scope = if attrs["scope"] == "regional", do: :regional, else: :national
-    today = Date.utc_today()
+    # O dia de Brasília, o mesmo da entrega.
+    {today, _start, _seconds} = brasilia_day(DateTime.utc_now())
 
     plan = %{
       title: text.("title", 60),

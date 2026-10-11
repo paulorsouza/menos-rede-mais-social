@@ -190,7 +190,7 @@ Exemplo: com 2 milhões de views no mês, o criador recebe o equivalente a 1,275
 
 - A receita de cada anúncio se divide entre criador e fundo de infraestrutura. Quem está na primeira faixa fica com 55%, nos vídeos e nos shorts; o resto paga a infraestrutura. A proporção pode mudar por RFC quando houver custo real medido.
 - O fechamento é mensal, no dia 1º, com repasse por PIX. Abaixo de R$ 1,00 o saldo espera o mês seguinte, porque um PIX de centavos custa mais do que vale.
-- A chave PIX precisa estar no CPF do próprio criador. O banco diz de quem é a chave, e a rede confere pela impressão digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF.
+- A chave PIX precisa estar no CPF do próprio criador. O banco diz de quem é a chave, e a rede confere pela impressão digital do CPF, sem guardar o número. Por isso a chave não pode ser o próprio CPF. Quem recebe como empresa cadastra o CNPJ na conta e usa uma chave dele, que pode ser o próprio CNPJ.
 - Cada criador tem um extrato aberto: views com anúncio por vídeo, as que não contaram e por quê, a faixa aplicada e a parte de cada anúncio dos shorts. O cálculo pode ser verificado por qualquer pessoa (seção 9).
 
 ### Regras para anunciantes
@@ -388,6 +388,7 @@ Feito:
 - Endereço de mídia assinado e com prazo, para toda foto e todo vídeo: `/media/s/<prazo>/<assinatura>/<chave>`, conferido pela borda (o `secure_link` do nginx) ou, sem S3, pelo backend. O link vale de 6 a 7 horas, então um link que vazou, inclusive de mídia de menor ou de post apagado, para de abrir. O navegador não guarda cópia (`no-store`).
 - Modo econômico de dados: nada do vídeo é baixado antes do play e a qualidade não passa de 360. Ele liga sozinho quando o celular pede economia ou a conexão é 2G.
 - Legendas automáticas com o whisper.cpp rodando dentro da rede: nenhum áudio sai para empresa de fora. Nos shorts, que começam sem som, a legenda aparece sozinha.
+- Quem publicou corrige o texto da legenda automática, trecho a trecho, com os tempos que o whisper gerou; trecho apagado sai da legenda.
 - Lives pelo navegador (WebRTC) ou pelo OBS (RTMP), entregues em HLS de baixa latência. O backend autoriza cada conexão pela chave da live, e a gravação vira vídeo comum quando a live acaba. Menor de idade não faz live.
 - Custo por hora de vídeo medido e publicado na transparência, ao lado do teto que os parâmetros permitem. Na demo, converter uma hora de vídeo gasta perto de uma hora de processador (R$ 0,24 com os preços ilustrativos), e guardar por um ano uma hora enviada em 1080 custa no máximo R$ 7,07.
 
@@ -396,7 +397,7 @@ Falta:
 - O orçamento, que fecha o portão. O custo já é medido; falta alguém dizer quanto pode gastar, e isso depende de quem operar a rede.
 - Medir com vídeos de verdade. Os da demo são gerados e simples, então ficam bem abaixo do teto.
 - CDN de verdade, com remoção imediata. Na demo, um arquivo apagado some da borda em até 5 minutos; numa CDN, a rede chama a API de remoção na hora.
-- Legendas melhores. O modelo padrão (small) erra palavras difíceis e às vezes inventa texto em áudio curto ou sem fala. Dá para usar um modelo maior e deixar quem publicou corrigir a legenda.
+- Legendas melhores. O modelo padrão (small) erra palavras difíceis e às vezes inventa texto em áudio curto ou sem fala; quem publicou já corrige, mas um modelo maior (MODELO_LEGENDAS) erra menos e custa mais processador.
 - Chat nas lives, que está em aberto. Lives não têm anúncio.
 - Codecs mais eficientes (AV1) para gastar menos banda, quando os aparelhos simples tocarem.
 
@@ -418,6 +419,7 @@ Feito:
 - O mês dos pagamentos é o de Brasília, como o dia do antifraude.
 - Fechamento do mês pelo motor aberto, criador por criador, só com os dados de cada um. As linhas de todos os extratos viram uma árvore de Merkle, e a raiz vai para o registro público. Quem viu um anúncio aparece só por um pseudônimo do mês.
 - Extrato aberto no painel do criador, com o motivo de cada view que não contou, e um arquivo que o verificador confere: ele refaz a conta com o mesmo código e prova cada linha na árvore publicada. Testado de ponta a ponta, e uma view inventada, uma conta básica virando verificada ou um total aumentado são apontados.
+- Criador que recebe como empresa: cadastra o CNPJ na conta e usa uma chave PIX do CNPJ.
 - Repasse por PIX pela fila, para uma chave conferida como sendo do próprio CPF do criador. Saldo abaixo de R$ 1,00 espera o mês seguinte. Quem cadastra a chave depois recebe o que estava esperando.
 - Contas abertas na transparência: em cada mês fechado, quanto entrou de anúncio, quanto foi para os criadores e quanto ficou com o fundo.
 - Painel do criador com a estimativa do mês, a faixa e os extratos fechados.
@@ -426,7 +428,6 @@ Falta:
 
 - Um banco de verdade (PSP), com o diretório de chaves, a cobrança e o repasse. Na demo, um banco simulado faz esse papel.
 - O gov.br da empresa, para confirmar que quem anuncia responde pelo CNPJ. Na demo, basta um CNPJ válido.
-- Chave PIX em CNPJ para criador que recebe como empresa.
 - Auditoria externa de segurança e de pagamentos, e revisão jurídica: são o portão.
 
 ### Fase 5 · Piloto
@@ -439,7 +440,7 @@ Feito no repositório:
 
 - Cofre do CPF preso à conta da ordem (TDH2): o guardião confere, antes de calcular a parte, que o selado foi feito para a conta que está no pedido. Uma parte com defeito não impede as outras de abrir, e o motor recusa um `guardioes.toml` incoerente.
 - Cerimônia distribuída dos guardiões (`cofre dkg`), em três passos no computador de cada guardião, com a reclamação apontando quem mandou uma subfatia errada.
-- Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX.
+- Lista pública de dependências (SBOM): a CI gera, a cada envio, a lista de todos os pacotes do motor, do backend, do front e da própria CI, em SPDX e CycloneDX. Na `main`, a lista sai assinada com o Sigstore junto dos binários da versão.
 - Relatório de transparência trimestral, publicado sozinho no primeiro dia de cada trimestre: denúncias e remoções por regra, recursos, ordens judiciais recebidas e cumpridas (as em segredo de justiça só na contagem), campanhas recusadas por regra e as contas dos meses. O SHA-256 do arquivo vai para o registro público, e qualquer pessoa confere o que baixou.
 - Pedidos de remoção vindos de fora, pelo canal formal do setor jurídico, com quem pediu e a base legal. Ordem judicial é cumprida e o post sai pela regra 9; pedido de outro órgão só tira o post se ele quebra uma regra pública, e senão é recusado com o motivo. Cada decisão entra no registro público (o número do processo só quando não é sigiloso), e os pedidos entram no relatório trimestral.
 
@@ -450,7 +451,7 @@ Falta:
 - Conselho e os cinco guardiões.
 - Revisão jurídica: Marco Civil, LGPD, ECA Digital e resoluções do TSE.
 - Encarregado de dados e relatório de impacto à proteção de dados.
-- Auditoria externa e recompensa por falhas. A lista de dependências já sai da CI; falta publicá-la junto de cada versão em produção.
+- Auditoria externa e recompensa por falhas.
 - Orçamento e o primeiro relatório de transparência com gente de verdade.
 
 ## 12. Riscos

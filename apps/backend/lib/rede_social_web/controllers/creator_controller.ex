@@ -21,6 +21,16 @@ defmodule RedeSocialWeb.CreatorController do
 
   def pix(_conn, _params), do: {:error, :invalid_pix_key}
 
+  @doc "A empresa da conta, para receber como empresa (chave PIX no CNPJ)."
+  def company(conn, params) do
+    with {:ok, company} <-
+           RedeSocial.Ads.register_advertiser(conn.assigns.current_account, params) do
+      json(conn, %{
+        company: %{name: company.name, cnpj: RedeSocial.Accounts.CNPJ.format(company.cnpj)}
+      })
+    end
+  end
+
   @doc "Um extrato fechado, linha a linha, para ler na tela."
   def statement(conn, %{"month" => month}) do
     with %{} = statement <- Payments.statement(conn.assigns.current_account, month) do

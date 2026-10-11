@@ -15,7 +15,10 @@ defmodule RedeSocial.Payments do
   O repasse vai por PIX para uma chave que o banco confirma ser do próprio
   criador: o diretório do PIX diz o CPF do dono da chave, e a rede compara
   pela impressão digital, sem guardar o número. A chave não pode ser o
-  próprio CPF, justamente para o CPF não ficar guardado em texto.
+  próprio CPF, justamente para o CPF não ficar guardado em texto. Quem
+  recebe como empresa usa uma chave do CNPJ da empresa cadastrada na conta
+  (o mesmo cadastro de quem anuncia); CNPJ não é dado pessoal e pode ser a
+  própria chave.
   """
 
   import Ecto.Query
@@ -35,7 +38,7 @@ defmodule RedeSocial.Payments do
 
   @doc """
   Cadastra a chave PIX do criador. Só vale chave que o banco confirma ser do
-  próprio CPF da conta. Repasses que esperavam por uma chave saem na hora.
+  próprio CPF da conta ou do CNPJ da empresa dela. Repasses que esperavam por uma chave saem na hora.
   """
   def register_pix_key(%Account{} = account, key) do
     with true <- Accounts.verified?(account) || {:error, :not_verified},
@@ -67,11 +70,12 @@ defmodule RedeSocial.Payments do
     end
   end
 
-  defp owner_is?(%Account{id: id}, document) do
-    match?(%Account{id: ^id}, Accounts.get_by_cpf(document))
+  defp owner_is?(%Account{id: id} = account, document) do
+    match?(%Account{id: ^id}, Accounts.get_by_cpf(document)) or
+      match?(%{cnpj: ^document}, RedeSocial.Ads.advertiser(account))
   end
 
-  @doc "E-mail, celular (+55...) ou chave aleatória. CPF como chave não."
+  @doc "E-mail, celular (+55...), chave aleatória ou CNPJ. CPF como chave não."
   def normalize_key(key) when is_binary(key) do
     key = String.trim(key)
     digits = String.replace(key, ~r/\D/, "")
@@ -85,6 +89,9 @@ defmodule RedeSocial.Payments do
 
       match?({:ok, _}, Accounts.CPF.normalize(digits)) and not String.starts_with?(key, "+") ->
         {:error, :cpf_pix_key}
+
+      byte_size(digits) == 14 and match?({:ok, _}, Accounts.CNPJ.normalize(digits)) ->
+        {:ok, :cnpj, digits}
 
       byte_size(digits) in [12, 13] and String.starts_with?(digits, "55") ->
         {:ok, :phone, "+" <> digits}
@@ -106,6 +113,7 @@ defmodule RedeSocial.Payments do
 
   defp hint(:phone, key), do: "celular terminado em " <> String.slice(key, -4, 4)
   defp hint(:random, key), do: "chave aleatória terminada em " <> String.slice(key, -4, 4)
+  defp hint(:cnpj, key), do: "CNPJ " <> Accounts.CNPJ.format(key)
 
   ## Fechamento do mês
 

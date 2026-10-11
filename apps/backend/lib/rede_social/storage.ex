@@ -28,6 +28,7 @@ defmodule RedeSocial.Storage do
               :ok | {:error, term()}
   @callback list(prefix :: String.t()) :: {:ok, [String.t()]} | {:error, term()}
   @callback delete(key :: String.t()) :: :ok | {:error, term()}
+  @callback get(key :: String.t()) :: {:ok, binary()} | {:error, term()}
 
   @prefix "/media/"
   # O link vale de 6 a 7 horas: o prazo fecha na hora cheia, para o mesmo
@@ -53,6 +54,9 @@ defmodule RedeSocial.Storage do
       end
     end)
   end
+
+  def get(key), do: adapter().get(key)
+  def delete(key), do: adapter().delete(key)
 
   @doc "Apaga tudo o que começa com o prefixo."
   def delete_prefix(prefix) do

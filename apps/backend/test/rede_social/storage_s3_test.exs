@@ -34,6 +34,20 @@ defmodule RedeSocial.StorageS3Test do
     assert RedeSocial.Storage.put_binary("v/abc/master.m3u8", "#EXTM3U") == :ok
   end
 
+  test "lê um arquivo, e o que não existe volta como não encontrado" do
+    Req.Test.stub(S3, fn conn ->
+      assert conn.method == "GET"
+
+      case conn.request_path do
+        "/midia/v/abc/legendas.vtt" -> Plug.Conn.send_resp(conn, 200, "WEBVTT\n")
+        _ -> Plug.Conn.send_resp(conn, 404, "")
+      end
+    end)
+
+    assert RedeSocial.Storage.get("v/abc/legendas.vtt") == {:ok, "WEBVTT\n"}
+    assert RedeSocial.Storage.get("v/abc/outra.vtt") == {:error, :not_found}
+  end
+
   test "lista todas as páginas de um prefixo" do
     Req.Test.stub(S3, fn conn ->
       conn = Plug.Conn.fetch_query_params(conn)
